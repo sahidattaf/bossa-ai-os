@@ -10,9 +10,9 @@ AI-powered restaurant operating system for BOSSA Asado i Mar.
 - AI Project Stack & Prompt Pack
 
 ## Repo structure
-- `prompts/` prompt library
-- `docs/` architecture and workflow docs
-- `notion/` Notion mappings and page notes
-- `src/` future dashboard and API code
-- `scripts/` helper scripts
-- `archive/` old drafts and temporary files
+- `prompts/` = prompt library
+- `docs/` = architecture and workflow docs
+- `notion/` = Notion mappings and page notes
+- `src/` = future dashboard and API code
+- `scripts/` = helper scripts
+- `archive/` = old drafts and temporary files
