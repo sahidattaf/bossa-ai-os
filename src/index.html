@@ -1,66 +1,167 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BOSSA AI OS Dashboard</title>
   <style>
     body {
-      font-family: Arial;
+      font-family: Arial, sans-serif;
+      margin: 0;
       background: #0f172a;
-      color: white;
-      padding: 20px;
+      color: #e2e8f0;
     }
-    h1 {
+
+    header {
+      background: #111827;
+      padding: 20px 24px;
+      border-bottom: 1px solid #1f2937;
+    }
+
+    header h1 {
+      margin: 0;
       color: #f97316;
+      font-size: 28px;
     }
+
+    header p {
+      margin: 6px 0 0;
+      color: #94a3b8;
+    }
+
+    .container {
+      padding: 24px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .kpi {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .kpi h3 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      color: #94a3b8;
+    }
+
+    .kpi p {
+      margin: 0;
+      font-size: 22px;
+      font-weight: bold;
+      color: #ffffff;
+    }
+
     .grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1.2fr 1fr;
       gap: 20px;
     }
+
     .card {
       background: #1e293b;
+      border-radius: 12px;
       padding: 20px;
-      border-radius: 10px;
+      margin-bottom: 20px;
     }
-    .title {
-      font-weight: bold;
-      margin-bottom: 10px;
+
+    .card h2 {
+      margin-top: 0;
       color: #38bdf8;
+      font-size: 18px;
+    }
+
+    .item {
+      padding: 10px 0;
+      border-bottom: 1px solid #334155;
+    }
+
+    .item:last-child {
+      border-bottom: none;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      margin-left: 8px;
+      background: #334155;
+      color: #e2e8f0;
+    }
+
+    .action {
+      color: #fbbf24;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
+  <header>
+    <h1>BOSSA AI OS — Dashboard</h1>
+    <p>Signals, weekly brief, decisions, and actions in one internal control panel.</p>
+  </header>
 
-<h1>BOSSA AI OS — Dashboard</h1>
+  <div class="container">
+    <section class="topbar">
+      <div class="kpi">
+        <h3>Top Threat</h3>
+        <p>Soi95</p>
+      </div>
+      <div class="kpi">
+        <h3>Promo Pressure</h3>
+        <p>High</p>
+      </div>
+      <div class="kpi">
+        <h3>Pricing Actions</h3>
+        <p>2</p>
+      </div>
+      <div class="kpi">
+        <h3>Open Decisions</h3>
+        <p>3</p>
+      </div>
+    </section>
 
-<div class="grid">
+    <section class="grid">
+      <div>
+        <div class="card">
+          <h2>🔥 Market Signals</h2>
+          <div class="item">Soi95 running aggressive weekend promo <span class="tag">High</span></div>
+          <div class="item">Avila Blues holding premium pricing <span class="tag">Watch</span></div>
+          <div class="item">Fensi menu movement on signature mains <span class="tag">Medium</span></div>
+        </div>
 
-  <div class="card">
-    <div class="title">🔥 Signals</div>
-    <p>Top competitor: Soi95</p>
-    <p>Pricing pressure: Medium</p>
-    <p>Active promo: Weekend Menu</p>
+        <div class="card">
+          <h2>🧠 Weekly Brief</h2>
+          <div class="item">Top threat: Soi95</div>
+          <div class="item">Biggest movement: weekend value offer pulling price-sensitive traffic</div>
+          <div class="item">Recommended move: protect brand, test value bundle, avoid direct discounting</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h2>🧾 Latest Decisions</h2>
+          <div class="item">Bundle test for weekend traffic</div>
+          <div class="item">Review chicken pricing after next cycle</div>
+          <div class="item">Monitor competitor promo intensity</div>
+        </div>
+
+        <div class="card">
+          <h2>📢 Action Panel</h2>
+          <div class="item action">Launch one value bundle test this weekend</div>
+          <div class="item action">Update competitor freshness fields</div>
+          <div class="item action">Write next weekly brief from latest signals</div>
+        </div>
+      </div>
+    </section>
   </div>
-
-  <div class="card">
-    <div class="title">🧠 Weekly Brief</div>
-    <p>Customers shifting to lower-priced options.</p>
-    <p>Competitor promo increasing traffic.</p>
-  </div>
-
-  <div class="card">
-    <div class="title">📢 Actions</div>
-    <p>Test combo offer</p>
-    <p>Increase visibility this weekend</p>
-  </div>
-
-  <div class="card">
-    <div class="title">🧾 Decisions</div>
-    <p>Adjust chicken pricing</p>
-    <p>Launch promo test</p>
-  </div>
-
-</div>
-
 </body>
 </html>
