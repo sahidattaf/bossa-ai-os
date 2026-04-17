@@ -4,144 +4,54 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BOSSA AI OS Dashboard</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      background: #0f172a;
-      color: #e2e8f0;
-    }
 
-    header {
-      background: #111827;
-      padding: 20px 24px;
-      border-bottom: 1px solid #1f2937;
-    }
-    <div class="meta">
-  <span id="weekOf"></span> • Last updated: <span id="lastUpdated"></span>
-</div>
-
-    header h1 {
-      margin: 0;
-      color: #f97316;
-      font-size: 28px;
-    }
-
-    header p {
-      margin: 6px 0 0;
-      color: #94a3b8;
-    }
-<div class="card">
-  <h2>🕶️ Boss Summary</h2>
-  <div id="bossSummary"></div>
-</div>
-    .container {
-      padding: 24px;
-    }
-
-    .topbar {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-
-    .kpi {
-      background: #1e293b;
-      border-radius: 12px;
-      padding: 16px;
-    }
-
-    .kpi h3 {
-      margin: 0 0 8px;
-      font-size: 14px;
-      color: #94a3b8;
-    }
-
-    .kpi p {
-      margin: 0;
-      font-size: 22px;
-      font-weight: bold;
-      color: #ffffff;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1.2fr 1fr;
-      gap: 20px;
-    }
-
-    .card {
-      background: #1e293b;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 20px;
-    }
-
-    .card h2 {
-      margin-top: 0;
-      color: #38bdf8;
-      font-size: 18px;
-    }
-
-    .item {
-      padding: 10px 0;
-      border-bottom: 1px solid #334155;
-    }
-
-    .item:last-child {
-      border-bottom: none;
-    }
-
-    .tag {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      margin-left: 8px;
-      background: #334155;
-      color: #e2e8f0;
-    }
-
-    .action {
-      color: #fbbf24;
-      font-weight: bold;
-    }
-
-    .meta {
-      color: #94a3b8;
-      font-size: 13px;
-      margin-top: 10px;
-    }
-  </style>
+  <!-- CSS -->
+  <link rel="stylesheet" href="./styles.css" />
 </head>
+
 <body>
   <header>
     <h1>BOSSA AI OS — Dashboard</h1>
     <p>Signals, weekly brief, decisions, and actions in one internal control panel.</p>
+
+    <div class="meta">
+      <span id="weekOf"></span> • Last updated: <span id="lastUpdated"></span>
+    </div>
   </header>
 
   <div class="container">
+
+    <!-- KPI -->
     <section class="topbar">
       <div class="kpi">
         <h3>Top Threat</h3>
         <p id="topThreat"></p>
       </div>
+
       <div class="kpi">
         <h3>Promo Pressure</h3>
         <p id="promoPressure"></p>
       </div>
+
       <div class="kpi">
         <h3>Pricing Actions</h3>
         <p id="pricingActions"></p>
       </div>
+
       <div class="kpi">
         <h3>Open Decisions</h3>
         <p id="openDecisions"></p>
       </div>
     </section>
 
+    <!-- Boss Summary -->
+    <div class="card">
+      <h2>🕶️ Boss Summary</h2>
+      <div id="bossSummary"></div>
+    </div>
+
     <section class="grid">
+
       <div>
         <div class="card">
           <h2>🔥 Market Signals</h2>
@@ -151,7 +61,6 @@
         <div class="card">
           <h2>🧠 Weekly Brief</h2>
           <div id="briefBox"></div>
-          <div class="meta">Source: mock JSON data</div>
         </div>
       </div>
 
@@ -166,55 +75,11 @@
           <div id="actionsList"></div>
         </div>
       </div>
+
     </section>
   </div>
 
-  <script>
-    document.getElementById('weekOf').textContent = data.weekOf;
-document.getElementById('lastUpdated').textContent = data.lastUpdated;
-document.getElementById('bossSummary').textContent = data.bossSummary;
-    async function loadDashboard() {
-      const response = await fetch('./data.json');
-      const data = await response.json();
-
-      document.getElementById('topThreat').textContent = data.topThreat;
-      document.getElementById('promoPressure').textContent = data.promoPressure;
-      document.getElementById('pricingActions').textContent = data.pricingActions;
-      document.getElementById('openDecisions').textContent = data.openDecisions;
-
-      const signalsList = document.getElementById('signalsList');
-      data.signals.forEach(signal => {
-        const div = document.createElement('div');
-        div.className = 'item';
-        div.innerHTML = `${signal.text} <span class="tag">${signal.tag}</span>`;
-        signalsList.appendChild(div);
-      });
-
-      const briefBox = document.getElementById('briefBox');
-      briefBox.innerHTML = `
-        <div class="item">Top threat: ${data.weeklyBrief.topThreat}</div>
-        <div class="item">Biggest movement: ${data.weeklyBrief.biggestMovement}</div>
-        <div class="item">Recommended move: ${data.weeklyBrief.recommendedMove}</div>
-      `;
-
-      const decisionsList = document.getElementById('decisionsList');
-      data.decisions.forEach(decision => {
-        const div = document.createElement('div');
-        div.className = 'item';
-        div.textContent = decision;
-        decisionsList.appendChild(div);
-      });
-
-      const actionsList = document.getElementById('actionsList');
-      data.actions.forEach(action => {
-        const div = document.createElement('div');
-        div.className = 'item action';
-        div.textContent = action;
-        actionsList.appendChild(div);
-      });
-    }
-
-    loadDashboard();
-  </script>
+  <!-- JS -->
+  <script src="./app.js"></script>
 </body>
 </html>
