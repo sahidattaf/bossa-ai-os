@@ -17,6 +17,9 @@
       padding: 20px 24px;
       border-bottom: 1px solid #1f2937;
     }
+    <div class="meta">
+  <span id="weekOf"></span> • Last updated: <span id="lastUpdated"></span>
+</div>
 
     header h1 {
       margin: 0;
@@ -28,7 +31,10 @@
       margin: 6px 0 0;
       color: #94a3b8;
     }
-
+<div class="card">
+  <h2>🕶️ Boss Summary</h2>
+  <div id="bossSummary"></div>
+</div>
     .container {
       padding: 24px;
     }
@@ -164,6 +170,9 @@
   </div>
 
   <script>
+    document.getElementById('weekOf').textContent = data.weekOf;
+document.getElementById('lastUpdated').textContent = data.lastUpdated;
+document.getElementById('bossSummary').textContent = data.bossSummary;
     async function loadDashboard() {
       const response = await fetch('./data.json');
       const data = await response.json();

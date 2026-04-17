@@ -1,8 +1,11 @@
 {
+  "weekOf": "2026-W16",
+  "lastUpdated": "2026-04-16",
   "topThreat": "Soi95",
   "promoPressure": "High",
   "pricingActions": 2,
   "openDecisions": 3,
+  "bossSummary": "Protect premium perception, test one value bundle, and avoid reactive discounting this week.",
   "signals": [
     { "text": "Soi95 running aggressive weekend promo", "tag": "High" },
     { "text": "Avila Blues holding premium pricing", "tag": "Watch" },
