@@ -101,6 +101,12 @@
       color: #fbbf24;
       font-weight: bold;
     }
+
+    .meta {
+      color: #94a3b8;
+      font-size: 13px;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -113,19 +119,19 @@
     <section class="topbar">
       <div class="kpi">
         <h3>Top Threat</h3>
-        <p>Soi95</p>
+        <p id="topThreat"></p>
       </div>
       <div class="kpi">
         <h3>Promo Pressure</h3>
-        <p>High</p>
+        <p id="promoPressure"></p>
       </div>
       <div class="kpi">
         <h3>Pricing Actions</h3>
-        <p>2</p>
+        <p id="pricingActions"></p>
       </div>
       <div class="kpi">
         <h3>Open Decisions</h3>
-        <p>3</p>
+        <p id="openDecisions"></p>
       </div>
     </section>
 
@@ -133,35 +139,73 @@
       <div>
         <div class="card">
           <h2>🔥 Market Signals</h2>
-          <div class="item">Soi95 running aggressive weekend promo <span class="tag">High</span></div>
-          <div class="item">Avila Blues holding premium pricing <span class="tag">Watch</span></div>
-          <div class="item">Fensi menu movement on signature mains <span class="tag">Medium</span></div>
+          <div id="signalsList"></div>
         </div>
 
         <div class="card">
           <h2>🧠 Weekly Brief</h2>
-          <div class="item">Top threat: Soi95</div>
-          <div class="item">Biggest movement: weekend value offer pulling price-sensitive traffic</div>
-          <div class="item">Recommended move: protect brand, test value bundle, avoid direct discounting</div>
+          <div id="briefBox"></div>
+          <div class="meta">Source: mock JSON data</div>
         </div>
       </div>
 
       <div>
         <div class="card">
           <h2>🧾 Latest Decisions</h2>
-          <div class="item">Bundle test for weekend traffic</div>
-          <div class="item">Review chicken pricing after next cycle</div>
-          <div class="item">Monitor competitor promo intensity</div>
+          <div id="decisionsList"></div>
         </div>
 
         <div class="card">
           <h2>📢 Action Panel</h2>
-          <div class="item action">Launch one value bundle test this weekend</div>
-          <div class="item action">Update competitor freshness fields</div>
-          <div class="item action">Write next weekly brief from latest signals</div>
+          <div id="actionsList"></div>
         </div>
       </div>
     </section>
   </div>
+
+  <script>
+    async function loadDashboard() {
+      const response = await fetch('./data.json');
+      const data = await response.json();
+
+      document.getElementById('topThreat').textContent = data.topThreat;
+      document.getElementById('promoPressure').textContent = data.promoPressure;
+      document.getElementById('pricingActions').textContent = data.pricingActions;
+      document.getElementById('openDecisions').textContent = data.openDecisions;
+
+      const signalsList = document.getElementById('signalsList');
+      data.signals.forEach(signal => {
+        const div = document.createElement('div');
+        div.className = 'item';
+        div.innerHTML = `${signal.text} <span class="tag">${signal.tag}</span>`;
+        signalsList.appendChild(div);
+      });
+
+      const briefBox = document.getElementById('briefBox');
+      briefBox.innerHTML = `
+        <div class="item">Top threat: ${data.weeklyBrief.topThreat}</div>
+        <div class="item">Biggest movement: ${data.weeklyBrief.biggestMovement}</div>
+        <div class="item">Recommended move: ${data.weeklyBrief.recommendedMove}</div>
+      `;
+
+      const decisionsList = document.getElementById('decisionsList');
+      data.decisions.forEach(decision => {
+        const div = document.createElement('div');
+        div.className = 'item';
+        div.textContent = decision;
+        decisionsList.appendChild(div);
+      });
+
+      const actionsList = document.getElementById('actionsList');
+      data.actions.forEach(action => {
+        const div = document.createElement('div');
+        div.className = 'item action';
+        div.textContent = action;
+        actionsList.appendChild(div);
+      });
+    }
+
+    loadDashboard();
+  </script>
 </body>
 </html>

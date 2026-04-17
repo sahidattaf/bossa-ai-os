@@ -1,0 +1,26 @@
+{
+  "topThreat": "Soi95",
+  "promoPressure": "High",
+  "pricingActions": 2,
+  "openDecisions": 3,
+  "signals": [
+    { "text": "Soi95 running aggressive weekend promo", "tag": "High" },
+    { "text": "Avila Blues holding premium pricing", "tag": "Watch" },
+    { "text": "Fensi menu movement on signature mains", "tag": "Medium" }
+  ],
+  "weeklyBrief": {
+    "topThreat": "Soi95",
+    "biggestMovement": "Weekend value offer pulling price-sensitive traffic",
+    "recommendedMove": "Protect brand, test value bundle, avoid direct discounting"
+  },
+  "decisions": [
+    "Bundle test for weekend traffic",
+    "Review chicken pricing after next cycle",
+    "Monitor competitor promo intensity"
+  ],
+  "actions": [
+    "Launch one value bundle test this weekend",
+    "Update competitor freshness fields",
+    "Write next weekly brief from latest signals"
+  ]
+}
