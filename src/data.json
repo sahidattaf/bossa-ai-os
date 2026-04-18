@@ -4,26 +4,72 @@
   "topThreat": "Soi95",
   "promoPressure": "High",
   "pricingActions": 2,
-  "openDecisions": 3,
+  "openDecisions": 2,
   "bossSummary": "Protect premium perception, test one value bundle, and avoid reactive discounting this week.",
+
   "signals": [
-    { "text": "Soi95 running aggressive weekend promo", "tag": "High" },
-    { "text": "Avila Blues holding premium pricing", "tag": "Watch" },
-    { "text": "Fensi menu movement on signature mains", "tag": "Medium" }
+    {
+      "text": "Soi95 running aggressive weekend promo",
+      "tag": "High",
+      "owner": "MarketingGPT",
+      "status": "Active"
+    },
+    {
+      "text": "Avila Blues holding premium pricing",
+      "tag": "Watch",
+      "owner": "PricingGPT",
+      "status": "Monitor"
+    },
+    {
+      "text": "Fensi menu movement on signature mains",
+      "tag": "Medium",
+      "owner": "MenuGPT",
+      "status": "Review"
+    }
   ],
+
   "weeklyBrief": {
     "topThreat": "Soi95",
     "biggestMovement": "Weekend value offer pulling price-sensitive traffic",
     "recommendedMove": "Protect brand, test value bundle, avoid direct discounting"
   },
+
   "decisions": [
-    "Bundle test for weekend traffic",
-    "Review chicken pricing after next cycle",
-    "Monitor competitor promo intensity"
+    {
+      "text": "Bundle test for weekend traffic",
+      "owner": "Ops Manager",
+      "status": "Open",
+      "decisionDate": "2026-04-14"
+    },
+    {
+      "text": "Review chicken pricing",
+      "owner": "Chef",
+      "status": "Pending",
+      "decisionDate": "2026-04-15"
+    }
   ],
+
   "actions": [
-    "Launch one value bundle test this weekend",
-    "Update competitor freshness fields",
-    "Write next weekly brief from latest signals"
+    {
+      "text": "Launch value bundle test",
+      "owner": "Marketing Team",
+      "priority": "High",
+      "status": "In Progress",
+      "dueDate": "2026-04-18"
+    },
+    {
+      "text": "Update competitor freshness",
+      "owner": "Analyst",
+      "priority": "Medium",
+      "status": "Open",
+      "dueDate": "2026-04-19"
+    },
+    {
+      "text": "Write next weekly brief",
+      "owner": "AI Operator",
+      "priority": "High",
+      "status": "Pending",
+      "dueDate": "2026-04-20"
+    }
   ]
 }
