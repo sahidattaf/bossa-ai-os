@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BOSSA AI OS — Decisions</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header>
+    <h1>BOSSA AI OS — Decisions</h1>
+    <p>Decision memory and current action direction.</p>
+    <div class="meta">
+      <span id="weekOf"></span> • Last updated: <span id="lastUpdated"></span>
+    </div>
+  </header>
+
+  <nav class="nav">
+    <a href="./index.html">Dashboard</a>
+    <a href="./brief.html">Brief</a>
+    <a href="./decisions.html" class="active">Decisions</a>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <h2>🧾 Latest Decisions</h2>
+      <div id="decisionsList"></div>
+    </div>
+
+    <div class="card">
+      <h2>📢 Current Actions</h2>
+      <div id="actionsList"></div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

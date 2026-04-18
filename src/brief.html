@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BOSSA AI OS — Brief</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header>
+    <h1>BOSSA AI OS — Weekly Brief</h1>
+    <p>Executive brief layer for weekly decision-making.</p>
+    <div class="meta">
+      <span id="weekOf"></span> • Last updated: <span id="lastUpdated"></span>
+    </div>
+  </header>
+
+  <nav class="nav">
+    <a href="./index.html">Dashboard</a>
+    <a href="./brief.html" class="active">Brief</a>
+    <a href="./decisions.html">Decisions</a>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <h2>🧠 Executive Summary</h2>
+      <div id="bossSummary"></div>
+    </div>
+
+    <div class="card">
+      <h2>🔥 Weekly Brief Details</h2>
+      <div id="briefBox"></div>
+    </div>
+
+    <div class="card">
+      <h2>📢 Action Panel</h2>
+      <div id="actionsList"></div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

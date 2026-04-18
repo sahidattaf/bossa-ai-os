@@ -2,52 +2,60 @@ async function loadDashboard() {
   const response = await fetch('./data.json');
   const data = await response.json();
 
-  // KPI
-  document.getElementById('topThreat').textContent = data.topThreat;
-  document.getElementById('promoPressure').textContent = data.promoPressure;
-  document.getElementById('pricingActions').textContent = data.pricingActions;
-  document.getElementById('openDecisions').textContent = data.openDecisions;
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
 
-  // Meta
-  document.getElementById('weekOf').textContent = data.weekOf;
-  document.getElementById('lastUpdated').textContent = data.lastUpdated;
+  setText('topThreat', data.topThreat);
+  setText('promoPressure', data.promoPressure);
+  setText('pricingActions', data.pricingActions);
+  setText('openDecisions', data.openDecisions);
+  setText('weekOf', data.weekOf);
+  setText('lastUpdated', data.lastUpdated);
+  setText('bossSummary', data.bossSummary);
 
-  // Boss summary
-  document.getElementById('bossSummary').textContent = data.bossSummary;
-
-  // Signals
   const signalsList = document.getElementById('signalsList');
-  data.signals.forEach(signal => {
-    const div = document.createElement('div');
-    div.className = 'item';
-    div.innerHTML = `${signal.text} <span class="tag">${signal.tag}</span>`;
-    signalsList.appendChild(div);
-  });
+  if (signalsList) {
+    signalsList.innerHTML = '';
+    data.signals.forEach(signal => {
+      const div = document.createElement('div');
+      div.className = 'item';
+      div.innerHTML = `${signal.text} <span class="tag">${signal.tag}</span>`;
+      signalsList.appendChild(div);
+    });
+  }
 
-  // Weekly brief
-  document.getElementById('briefBox').innerHTML = `
-    <div class="item">Top threat: ${data.weeklyBrief.topThreat}</div>
-    <div class="item">Biggest movement: ${data.weeklyBrief.biggestMovement}</div>
-    <div class="item">Recommended move: ${data.weeklyBrief.recommendedMove}</div>
-  `;
+  const briefBox = document.getElementById('briefBox');
+  if (briefBox) {
+    briefBox.innerHTML = `
+      <div class="item">Top threat: ${data.weeklyBrief.topThreat}</div>
+      <div class="item">Biggest movement: ${data.weeklyBrief.biggestMovement}</div>
+      <div class="item">Recommended move: ${data.weeklyBrief.recommendedMove}</div>
+    `;
+  }
 
-  // Decisions
   const decisionsList = document.getElementById('decisionsList');
-  data.decisions.forEach(d => {
-    const div = document.createElement('div');
-    div.className = 'item';
-    div.textContent = d;
-    decisionsList.appendChild(div);
-  });
+  if (decisionsList) {
+    decisionsList.innerHTML = '';
+    data.decisions.forEach(d => {
+      const div = document.createElement('div');
+      div.className = 'item';
+      div.textContent = d;
+      decisionsList.appendChild(div);
+    });
+  }
 
-  // Actions
   const actionsList = document.getElementById('actionsList');
-  data.actions.forEach(a => {
-    const div = document.createElement('div');
-    div.className = 'item action';
-    div.textContent = a;
-    actionsList.appendChild(div);
-  });
+  if (actionsList) {
+    actionsList.innerHTML = '';
+    data.actions.forEach(a => {
+      const div = document.createElement('div');
+      div.className = 'item action';
+      div.textContent = a;
+      actionsList.appendChild(div);
+    });
+  }
 }
 
 loadDashboard();
