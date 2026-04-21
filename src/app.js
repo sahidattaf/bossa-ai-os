@@ -42,40 +42,52 @@ if (decisionsList) {
     `;
     decisionsList.appendChild(div);
   });
-}const const actionsList = document.getElementById('actionsList');
+}const actionsList = document.getElementById('actionsList');
 if (actionsList) {
   actionsList.innerHTML = '';
   const today = new Date();
 
+  const grouped = {};
   data.actions.forEach(a => {
-    const priorityClass =
-      a.priority.toLowerCase() === 'high' ? 'badge-high' :
-      a.priority.toLowerCase() === 'medium' ? 'badge-medium' :
-      'badge-low';
+    if (!grouped[a.owner]) grouped[a.owner] = [];
+    grouped[a.owner].push(a);
+  });
 
-    const statusClass =
-      a.status.toLowerCase() === 'in progress' ? 'badge-progress' :
-      a.status.toLowerCase() === 'open' ? 'badge-open' :
-      'badge-pending';
+  Object.entries(grouped).forEach(([owner, actions]) => {
+    const ownerHeader = document.createElement('div');
+    ownerHeader.className = 'owner-group';
+    ownerHeader.textContent = owner;
+    actionsList.appendChild(ownerHeader);
 
-    const dueDate = new Date(a.dueDate);
-    const isOverdue = dueDate < today && a.status.toLowerCase() !== 'done';
+    actions.forEach(a => {
+      const priorityClass =
+        a.priority.toLowerCase() === 'high' ? 'badge-high' :
+        a.priority.toLowerCase() === 'medium' ? 'badge-medium' :
+        'badge-low';
 
-    const div = document.createElement('div');
-    div.className = 'item action';
-    div.innerHTML = `
-      ${a.text}
-      <div class="meta ${isOverdue ? 'overdue-text' : ''}">
-        ${a.owner} • Due: ${a.dueDate}
-        <span class="badge ${priorityClass}">${a.priority}</span>
-        <span class="badge ${statusClass}">${a.status}</span>
-        ${isOverdue ? '<span class="badge badge-overdue">Overdue</span>' : ''}
-      </div>
-    `;
-    actionsList.appendChild(div);
+      const statusClass =
+        a.status.toLowerCase() === 'in progress' ? 'badge-progress' :
+        a.status.toLowerCase() === 'open' ? 'badge-open' :
+        'badge-pending';
+
+      const dueDate = new Date(a.dueDate);
+      const isOverdue = dueDate < today && a.status.toLowerCase() !== 'done';
+
+      const div = document.createElement('div');
+      div.className = 'item action';
+      div.innerHTML = `
+        ${a.text}
+        <div class="meta ${isOverdue ? 'overdue-text' : ''}">
+          Due: ${a.dueDate}
+          <span class="badge ${priorityClass}">${a.priority}</span>
+          <span class="badge ${statusClass}">${a.status}</span>
+          ${isOverdue ? '<span class="badge badge-overdue">Overdue</span>' : ''}
+        </div>
+      `;
+      actionsList.appendChild(div);
+    });
   });
 }
-
     const statusClass =
       a.status.toLowerCase() === 'in progress' ? 'badge-progress' :
       a.status.toLowerCase() === 'open' ? 'badge-open' :
