@@ -42,14 +42,39 @@ if (decisionsList) {
     `;
     decisionsList.appendChild(div);
   });
-}const actionsList = document.getElementById('actionsList');
+}const const actionsList = document.getElementById('actionsList');
 if (actionsList) {
   actionsList.innerHTML = '';
+  const today = new Date();
+
   data.actions.forEach(a => {
     const priorityClass =
       a.priority.toLowerCase() === 'high' ? 'badge-high' :
       a.priority.toLowerCase() === 'medium' ? 'badge-medium' :
       'badge-low';
+
+    const statusClass =
+      a.status.toLowerCase() === 'in progress' ? 'badge-progress' :
+      a.status.toLowerCase() === 'open' ? 'badge-open' :
+      'badge-pending';
+
+    const dueDate = new Date(a.dueDate);
+    const isOverdue = dueDate < today && a.status.toLowerCase() !== 'done';
+
+    const div = document.createElement('div');
+    div.className = 'item action';
+    div.innerHTML = `
+      ${a.text}
+      <div class="meta ${isOverdue ? 'overdue-text' : ''}">
+        ${a.owner} • Due: ${a.dueDate}
+        <span class="badge ${priorityClass}">${a.priority}</span>
+        <span class="badge ${statusClass}">${a.status}</span>
+        ${isOverdue ? '<span class="badge badge-overdue">Overdue</span>' : ''}
+      </div>
+    `;
+    actionsList.appendChild(div);
+  });
+}
 
     const statusClass =
       a.status.toLowerCase() === 'in progress' ? 'badge-progress' :

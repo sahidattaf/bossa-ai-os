@@ -45,4 +45,12 @@
 
 .badge-progress {
   background: #ea580c;
+}.badge-overdue {
+  background: #991b1b;
+  color: white;
+}
+
+.overdue-text {
+  color: #fecaca;
+  font-weight: bold;
 }
