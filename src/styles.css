@@ -100,4 +100,26 @@
   .kpi p {
     font-size: 20px;
   }
+}.executive-controls {
+  margin-bottom: 20px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #e2e8f0;
+  font-size: 14px;
+}
+
+.toggle-row input {
+  transform: scale(1.2);
+}
+
+.executive-focus {
+  border-left: 4px solid #f97316;
+}
+
+.kpi-focus {
+  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
 }
