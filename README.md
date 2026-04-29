@@ -1,14 +1,33 @@
-## 🔗 Live Preview (Local / Coming Soon)
+# BOSSA AI OS
 
-Run locally:
+AI-powered restaurant operating system prototype for BOSSA Asado i Mar.
+
+---
+
+## Live Preview
+
+Run locally with any static file server.
+
+Using Python:
+
+```bash
+cd src
+python -m http.server 8000
+```
+
+Then open:
+
+```text
+http://localhost:8000
+```
+
+Alternative using live-server:
 
 ```bash
 npm install -g live-server
 cd src
 live-server
-# BOSSA AI OS
-
-AI-powered restaurant operating system prototype for BOSSA Asado i Mar.
+```
 
 ---
 
@@ -58,3 +77,4 @@ BOSSA AI OS enables:
 
 ```text
 Market Signals → Weekly Brief → Decisions → Actions → Learning Loop
+```
