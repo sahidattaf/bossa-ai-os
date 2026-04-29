@@ -1,3 +1,11 @@
+## 🔗 Live Preview (Local / Coming Soon)
+
+Run locally:
+
+```bash
+npm install -g live-server
+cd src
+live-server
 # BOSSA AI OS
 
 AI-powered restaurant operating system prototype for BOSSA Asado i Mar.
