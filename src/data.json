@@ -3,6 +3,11 @@
   "targetRevenue": 120000,
   "covers": 65,
   "targetCovers": 180
+},"kpis": {
+  "revenue": 45000,
+  "targetRevenue": 120000,
+  "covers": 65,
+  "targetCovers": 180
 },
   "weekOf": "2026-W16",
   "lastUpdated": "2026-04-16",
