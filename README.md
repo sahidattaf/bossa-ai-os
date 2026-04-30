@@ -4,7 +4,9 @@ AI-powered restaurant operating system prototype for BOSSA Asado i Mar.
 
 BOSSA AI OS is a portfolio-level AI systems and workflow prototype for turning market signals into clearer weekly decisions. It demonstrates practical product thinking across dashboards, prompts, decision memory, and operational planning.
 
----
+---## Dashboard Preview
+
+![BOSSA AI OS Dashboard](assets/bossa-ai-os-dashboard.png)
 
 ## Live Preview
 

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BOSSA AI OS</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div class="container">
+
+    <!-- HEADER -->
+    <header class="header">
+      <h1>BOSSA AI OS</h1>
+      <p class="subtitle">
+        AI-powered restaurant decision system — Prototype
+      </p>
+      <p class="meta">
+        Curaçao • Hospitality Operations • AI Workflow System
+      </p>
+    </header>
+
+    <!-- KPI STRIP -->
+    <section class="kpi-strip">
+      <div class="kpi">
+        <span>Top Threat</span>
+        <strong id="topThreat">—</strong>
+      </div>
+
+      <div class="kpi">
+        <span>Promo Pressure</span>
+        <strong id="promoPressure">—</strong>
+      </div>
+
+      <div class="kpi">
+        <span>Pricing Actions</span>
+        <strong id="pricingActions">—</strong>
+      </div>
+
+      <div class="kpi">
+        <span>Open Decisions</span>
+        <strong id="openDecisions">—</strong>
+      </div>
+    </section>
+
+    <!-- EXECUTIVE MODE -->
+    <section class="card">
+      <h2>Executive Mode</h2>
+      <label class="toggle">
+        <input type="checkbox" id="executiveModeToggle" checked />
+        Show only high-priority actions
+      </label>
+    </section>
+
+    <!-- BOSS SUMMARY -->
+    <section class="card">
+      <h2>Boss Summary</h2>
+      <div id="bossSummary"></div>
+
+      <div class="objective">
+        <strong>Week Objective:</strong>
+        Protect premium positioning while capturing price-sensitive traffic.
+      </div>
+    </section>
+
+    <!-- ACTION PANEL (HIGH PRIORITY POSITION) -->
+    <section class="card">
+      <h2>Action Panel</h2>
+      <div id="actionsList"></div>
+    </section>
+
+    <!-- MAIN GRID -->
+    <section class="grid">
+
+      <!-- SIGNALS -->
+      <div class="card">
+        <h2>Market Signals</h2>
+        <div id="signalsList"></div>
+      </div>
+
+      <!-- WEEKLY BRIEF -->
+      <div class="card">
+        <h2>Weekly Brief</h2>
+        <div id="brief"></div>
+      </div>
+
+      <!-- DECISIONS -->
+      <div class="card">
+        <h2>Latest Decisions</h2>
+        <div id="decisionsList"></div>
+      </div>
+
+    </section>
+
+    <!-- SYSTEM FLOW -->
+    <footer class="footer">
+      <p>
+        Market Signals → Weekly Brief → Decisions → Actions → Learning Loop
+      </p>
+    </footer>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
