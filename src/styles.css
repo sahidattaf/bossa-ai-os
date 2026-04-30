@@ -254,3 +254,15 @@ Open styles.css and add:
   font-size: 14px;
   color: #ccc;
 }git add src/styles.css
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px;
+}.header h1 {
+  margin-bottom: 5px;
+}
+
+.subtitle {
+  color: #aaa;
+  margin-bottom: 5px;
+}
