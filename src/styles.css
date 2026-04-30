@@ -239,4 +239,18 @@ header p {
   .kpi p {
     font-size: 20px;
   }
-}
+}⚡ OPTIONAL (IF YOU HAVE 2 MIN ENERGY LEFT)
+
+Open styles.css and add:
+
+.objective {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #ccc;
+}/* === BOSSA CUSTOM COMPONENTS === */
+
+.objective {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #ccc;
+}git add src/styles.css
