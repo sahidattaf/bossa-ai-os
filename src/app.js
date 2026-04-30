@@ -1,4 +1,6 @@
-const setText = (id, value) => {
+import { analyzeKPIs } from './ai/analyzer.js';
+import { generateDecisions } from './ai/decision-engine.js';
+import { generateActions } from './ai/action-engine.js';const setText = (id, value) => {
   const el = document.getElementById(id);
   if (el) el.textContent = value;
 };
@@ -135,8 +137,26 @@ function renderActions(actions, options = {}) {
 
 async function loadDashboard() {
   const response = await fetch('./data.json');
-  const data = await response.json();
-  const executiveModeToggle = document.getElementById('executiveModeToggle');
+  const data = await response.json();const alerts = analyzeKPIs(data);
+const aiDecisions = generateDecisions(alerts);
+renderAIDecisions(aiDecisions);
+  const executiveModeToggle = document.getElementById('executiveModeToggle');const alerts = analyzeKPIs(data);
+const aiDecisions = generateDecisions(alerts);
+const aiActions = generateActions(aiDecisions);function renderAIDecisions(decisions) {
+  const el = document.getElementById("aiDecisions");
+  if (!el) return;
+
+  if (!decisions.length) {
+    el.innerHTML = `<p class="muted">No AI decisions generated yet.</p>`;
+    return;
+  }
+
+  el.innerHTML = decisions
+    .map(decision => `<div class="item">${decision}</div>`)
+    .join("");
+}
+
+renderActions(aiActions, { highPriorityOnly: false });
 
   renderMeta(data);
   renderKPIs(data);

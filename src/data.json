@@ -72,4 +72,9 @@
       "dueDate": "2026-04-20"
     }
   ]
+}"kpis": {
+  "revenue": 45000,
+  "targetRevenue": 120000,
+  "covers": 65,
+  "targetCovers": 180
 }
