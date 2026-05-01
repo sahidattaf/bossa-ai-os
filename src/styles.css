@@ -265,4 +265,16 @@ Open styles.css and add:
 .subtitle {
   color: #aaa;
   margin-bottom: 5px;
+}/* === BOSSA PRIORITY COLORS === */
+
+.high {
+  color: #ff4d4d;
+}
+
+.medium {
+  color: #ffaa00;
+}
+
+.low {
+  color: #00cc88;
 }

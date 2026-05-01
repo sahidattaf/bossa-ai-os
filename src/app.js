@@ -30,7 +30,7 @@ function renderSignals(signals = []) {
 
   el.innerHTML = signals.map(s => `
     <div>
-      <strong>${s.text}</strong><br/>
+      <strong class="${s.tag.toLowerCase()}">${s.text}</strong><br/>
       <small>${s.tag} — ${s.owner}</small>
     </div>
   `).join('');
@@ -65,7 +65,11 @@ function renderAIDecisions(list = []) {
   const el = document.getElementById('aiDecisions');
   if (!el) return;
 
-  el.innerHTML = list.map(d => `<div>${d}</div>`).join('');
+  el.innerHTML = list.map(d => `
+    <div>
+      🧠 ${d}
+    </div>
+  `).join('');
 }
 
 function renderActions(actions = []) {
@@ -81,6 +85,34 @@ function renderActions(actions = []) {
 }
 
 function applySavedInput(data) {
+  const savedInput = JSON.parse(localStorage.getItem('bossaDailyInput') || '{}');
+
+  if (!data.kpis) data.kpis = {};
+
+  if (savedInput.revenue) data.kpis.revenue = savedInput.revenue;
+  if (savedInput.covers) data.kpis.covers = savedInput.covers;
+
+  if (savedInput.issue) {
+    data.bossSummary = `${data.bossSummary} Today’s issue: ${savedInput.issue}.`;
+  }
+
+  if (savedInput.competitor) {
+    data.signals.unshift({
+      text: savedInput.competitor,
+      tag: savedInput.priority || 'High',
+      owner: 'Owner Input',
+      status: 'Active'
+    });
+  }
+
+  // 👉 NEW: show last input
+  const noteEl = document.getElementById("lastInputNote");
+  if (noteEl && savedInput.date) {
+    noteEl.textContent = `Last input: ${savedInput.date} • Priority: ${savedInput.priority || 'High'}`;
+  }
+
+  return data;
+}
   const savedInput = JSON.parse(localStorage.getItem('bossaDailyInput') || '{}');
 
   if (!data.kpis) data.kpis = {};

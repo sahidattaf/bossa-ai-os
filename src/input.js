@@ -24,7 +24,8 @@ saveButton.addEventListener('click', () => {
   };
 
   localStorage.setItem('bossaDailyInput', JSON.stringify(input));
-  saveStatus.textContent = 'Saved. Open Dashboard to see updates.';
+  const now = new Date().toLocaleTimeString();
+saveStatus.textContent = `Saved at ${now} ✅`;
 });
 
 clearButton.addEventListener('click', () => {
