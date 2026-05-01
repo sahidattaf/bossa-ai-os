@@ -1,14 +1,15 @@
 import { analyzeKPIs } from './ai/analyzer.js';
 import { generateDecisions } from './ai/decision-engine.js';
-import { generateActions } from './ai/action-engine.js';const setText = (id, value) => {
+import { generateActions } from './ai/action-engine.js';
+
+const setText = (id, value) => {
   const el = document.getElementById(id);
-  if (el) el.textContent = value;
+  if (el) el.textContent = value ?? '';
 };
 
 function renderMeta(data) {
   setText('weekOf', data.weekOf);
   setText('lastUpdated', data.lastUpdated);
-  setText('bossSummary', data.bossSummary);
 }
 
 function renderKPIs(data) {
@@ -18,165 +19,84 @@ function renderKPIs(data) {
   setText('openDecisions', data.openDecisions);
 }
 
-function renderSignals(data) {
-  const signalsList = document.getElementById('signalsList');
-  if (!signalsList) return;
+function renderSummary(data) {
+  setText('bossSummary', data.bossSummary);
+}
 
-  signalsList.innerHTML = '';
-  data.signals.forEach(signal => {
-    const priorityClass =
-      signal.tag.toLowerCase() === 'high' ? 'badge-high' :
-      signal.tag.toLowerCase() === 'medium' ? 'badge-medium' :
-      'badge-low';
+function renderSignals(signals = []) {
+  const el = document.getElementById('signalsList');
+  if (!el) return;
 
-    const statusClass =
-      signal.status.toLowerCase() === 'active' ? 'badge-active' :
-      signal.status.toLowerCase() === 'review' ? 'badge-review' :
-      'badge-monitor';
+  el.innerHTML = signals.map(s => `
+    <div>
+      <strong>${s.text}</strong><br/>
+      <small>${s.tag} — ${s.owner}</small>
+    </div>
+  `).join('');
+}
 
-    const div = document.createElement('div');
-    div.className = 'item';
-    div.innerHTML = `
-      ${signal.text}
-      <span class="badge ${priorityClass}">${signal.tag}</span>
-      <div class="meta">
-        ${signal.owner}
-        <span class="badge ${statusClass}">${signal.status}</span>
-      </div>
-    `;
-    signalsList.appendChild(div);
-  });
+function renderDecisions(decisions = []) {
+  const el = document.getElementById('decisionsList');
+  if (!el) return;
+
+  el.innerHTML = decisions.map(d => `
+    <div>
+      <strong>${d.text}</strong><br/>
+      <small>${d.status} — ${d.owner}</small>
+    </div>
+  `).join('');
 }
 
 function renderBrief(data) {
-  const briefBox = document.getElementById('briefBox');
-  if (!briefBox) return;
+  const el = document.getElementById('briefBox');
+  if (!el || !data.weeklyBrief) return;
 
-  briefBox.innerHTML = `
-    <div class="item">Top threat: ${data.weeklyBrief.topThreat}</div>
-    <div class="item">Biggest movement: ${data.weeklyBrief.biggestMovement}</div>
-    <div class="item">Recommended move: ${data.weeklyBrief.recommendedMove}</div>
+  const b = data.weeklyBrief;
+
+  el.innerHTML = `
+    <p><strong>Top:</strong> ${b.topThreat}</p>
+    <p><strong>Move:</strong> ${b.biggestMovement}</p>
+    <p><strong>Action:</strong> ${b.recommendedMove}</p>
   `;
 }
 
-function renderDecisions(data) {
-  const decisionsList = document.getElementById('decisionsList');
-  if (!decisionsList) return;
+function renderAIDecisions(list = []) {
+  const el = document.getElementById('aiDecisions');
+  if (!el) return;
 
-  decisionsList.innerHTML = '';
-  data.decisions.forEach(d => {
-    const statusClass =
-      d.status.toLowerCase() === 'open' ? 'badge-open' : 'badge-pending';
-
-    const div = document.createElement('div');
-    div.className = 'item';
-    div.innerHTML = `
-      ${d.text}
-      <div class="meta">
-        ${d.owner} • ${d.decisionDate}
-        <span class="badge ${statusClass}">${d.status}</span>
-      </div>
-    `;
-    decisionsList.appendChild(div);
-  });
+  el.innerHTML = list.map(d => `<div>${d}</div>`).join('');
 }
 
-function renderActions(actions, options = {}) {
-  const actionsList = document.getElementById('actionsList');
-  if (!actionsList) return;
+function renderActions(actions = []) {
+  const el = document.getElementById('actionsList');
+  if (!el) return;
 
-  const highPriorityOnly = options.highPriorityOnly || false;
-  const filteredActions = highPriorityOnly
-    ? actions.filter(a => a.priority.toLowerCase() === 'high')
-    : actions;
-  const grouped = {};
-  const today = new Date();
-
-  actionsList.innerHTML = '';
-
-  filteredActions.forEach(a => {
-    if (!grouped[a.owner]) grouped[a.owner] = [];
-    grouped[a.owner].push(a);
-  });
-
-  Object.entries(grouped).forEach(([owner, ownerActions]) => {
-    const ownerHeader = document.createElement('div');
-    ownerHeader.className = 'owner-group';
-    ownerHeader.textContent = owner;
-    actionsList.appendChild(ownerHeader);
-
-    ownerActions.forEach(a => {
-      const priorityClass =
-        a.priority.toLowerCase() === 'high' ? 'badge-high' :
-        a.priority.toLowerCase() === 'medium' ? 'badge-medium' :
-        'badge-low';
-
-      const statusClass =
-        a.status.toLowerCase() === 'in progress' ? 'badge-progress' :
-        a.status.toLowerCase() === 'open' ? 'badge-open' :
-        'badge-pending';
-
-      const dueDate = new Date(a.dueDate);
-      const isOverdue = dueDate < today && a.status.toLowerCase() !== 'done';
-
-      const div = document.createElement('div');
-      div.className = 'item action executive-focus';
-      div.innerHTML = `
-        ${a.text}
-        <div class="meta ${isOverdue ? 'overdue-text' : ''}">
-          Due: ${a.dueDate}
-          <span class="badge ${priorityClass}">${a.priority}</span>
-          <span class="badge ${statusClass}">${a.status}</span>
-          ${isOverdue ? '<span class="badge badge-overdue">Overdue</span>' : ''}
-        </div>
-      `;
-      actionsList.appendChild(div);
-    });
-  });
+  el.innerHTML = actions.map(a => `
+    <div>
+      <strong>${a.title || a.text}</strong><br/>
+      <small>${a.priority}</small>
+    </div>
+  `).join('');
 }
 
 async function loadDashboard() {
-  const response = await fetch('./data.json');
-  const data = await response.json();const alerts = analyzeKPIs(data);
-const aiDecisions = generateDecisions(alerts);
-renderAIDecisions(aiDecisions);
-  const executiveModeToggle = document.getElementById('executiveModeToggle');const alerts = analyzeKPIs(data);
-const aiDecisions = generateDecisions(alerts);
-const aiActions = generateActions(aiDecisions);function renderAIDecisions(decisions) {
-  const el = document.getElementById("aiDecisions");
-  if (!el) return;
-
-  if (!decisions.length) {
-    el.innerHTML = `<p class="muted">No AI decisions generated yet.</p>`;
-    return;
-  }
-
-  el.innerHTML = decisions
-    .map(decision => `<div class="item">${decision}</div>`)
-    .join("");
-}
-
-renderActions(aiActions, { highPriorityOnly: false });
+  const res = await fetch('./data.json');
+  const data = await res.json();
 
   renderMeta(data);
   renderKPIs(data);
-  renderSignals(data);
+  renderSummary(data);
+  renderSignals(data.signals);
+  renderDecisions(data.decisions);
   renderBrief(data);
-  renderDecisions(data);
 
-  if (executiveModeToggle) {
-    const renderDashboardActions = () => {
-      renderActions(data.actions, {
-        highPriorityOnly: executiveModeToggle.checked
-      });
-    };
+  // AI ENGINE
+  const alerts = analyzeKPIs(data);
+  const aiDecisions = generateDecisions(alerts);
+  const aiActions = generateActions(aiDecisions);
 
-    renderDashboardActions();
-    executiveModeToggle.addEventListener('change', renderDashboardActions);
-    return;
-  }
-
-  renderActions(data.actions, { highPriorityOnly: false });
+  renderAIDecisions(aiDecisions);
+  renderActions(aiActions);
 }
 
 loadDashboard();
