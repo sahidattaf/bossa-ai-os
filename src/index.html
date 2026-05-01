@@ -6,88 +6,80 @@
   <title>BOSSA AI OS — Dashboard</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
-
 <body>
   <header>
     <h1>BOSSA AI OS — Dashboard</h1>
     <p>Signals, weekly brief, decisions, and actions in one internal control panel.</p>
-    <div class="meta">
-      <span id="weekOf"></span> • Last updated: <span id="lastUpdated"></span>
-    </div>
+    <p><span id="weekOf"></span> • Last updated: <span id="lastUpdated"></span></p>
   </header>
 
-  <nav class="nav">
-    <a href="./index.html" class="active">Dashboard</a>
+  <nav>
+    <a class="active" href="./index.html">Dashboard</a>
     <a href="./brief.html">Brief</a>
     <a href="./decisions.html">Decisions</a>
   </nav>
 
-  <div class="container">
-
-    <div class="card executive-controls">
+  <main>
+    <section class="card">
       <h2>🎛️ Executive Mode</h2>
-      <label class="toggle-row">
+      <label>
         <input type="checkbox" id="executiveModeToggle" checked />
-        <span>Show only high-priority actions on Dashboard</span>
+        Show only high-priority actions on Dashboard
       </label>
-    </div>
+    </section>
 
     <section class="topbar">
       <div class="kpi kpi-focus">
         <h3>Top Threat</h3>
         <p id="topThreat"></p>
       </div>
-
       <div class="kpi kpi-focus">
         <h3>Promo Pressure</h3>
         <p id="promoPressure"></p>
       </div>
-
       <div class="kpi">
         <h3>Pricing Actions</h3>
         <p id="pricingActions"></p>
       </div>
-
       <div class="kpi">
         <h3>Open Decisions</h3>
         <p id="openDecisions"></p>
       </div>
     </section>
 
-    <div class="card">
+    <section class="card">
       <h2>🕶️ Boss Summary</h2>
       <div id="bossSummary"></div>
-    </div><section class="card">
-  <h2>AI Decisions</h2>
-  <div id="aiDecisions"></div>
-</section>
-
-    <div class="card">
-      <h2>📢 Action Panel</h2>
-      <div id="actionsList"></div>
-    </div>
-
-    <section class="grid">
-      <div>
-        <div class="card">
-          <h2>🔥 Market Signals</h2>
-          <div id="signalsList"></div>
-        </div>
-
-        <div class="card">
-          <h2>🧠 Weekly Brief</h2>
-          <div id="briefBox"></div>
-        </div>
-      </div>
-
-      <div>
-        <div class="card">
-          <h2>🧾 Latest Decisions</h2>
-          <div id="decisionsList"></div>
-        </div>
-      </div>
     </section>
 
-  </div>
+    <section class="card">
+      <h2>AI Decisions</h2>
+      <div id="aiDecisions"></div>
+    </section>
 
- <script type="module" src="app.js"></script>
+    <section class="card">
+      <h2>📢 Action Panel</h2>
+      <div id="actionsList"></div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h2>🔥 Market Signals</h2>
+        <div id="signalsList"></div>
+      </div>
+
+      <div class="card">
+        <h2>🧾 Latest Decisions</h2>
+        <div id="decisionsList"></div>
+      </div>
+
+      <div class="card">
+        <h2>🧠 Weekly Brief</h2>
+        <div id="briefBox"></div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
