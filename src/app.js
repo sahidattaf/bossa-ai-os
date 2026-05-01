@@ -1,3 +1,4 @@
+
 import { analyzeKPIs } from './ai/analyzer.js';
 import { generateDecisions } from './ai/decision-engine.js';
 import { generateActions } from './ai/action-engine.js';
@@ -79,9 +80,35 @@ function renderActions(actions = []) {
   `).join('');
 }
 
+function applySavedInput(data) {
+  const savedInput = JSON.parse(localStorage.getItem('bossaDailyInput') || '{}');
+
+  if (!data.kpis) data.kpis = {};
+
+  if (savedInput.revenue) data.kpis.revenue = savedInput.revenue;
+  if (savedInput.covers) data.kpis.covers = savedInput.covers;
+
+  if (savedInput.issue) {
+    data.bossSummary = `${data.bossSummary} Today’s issue: ${savedInput.issue}.`;
+  }
+
+  if (savedInput.competitor) {
+    data.signals.unshift({
+      text: savedInput.competitor,
+      tag: savedInput.priority || 'High',
+      owner: 'Owner Input',
+      status: 'Active'
+    });
+  }
+
+  return data;
+}
+
 async function loadDashboard() {
   const res = await fetch('./data.json');
-  const data = await res.json();
+  let data = await res.json();
+
+  data = applySavedInput(data);
 
   renderMeta(data);
   renderKPIs(data);
@@ -90,7 +117,6 @@ async function loadDashboard() {
   renderDecisions(data.decisions);
   renderBrief(data);
 
-  // AI ENGINE
   const alerts = analyzeKPIs(data);
   const aiDecisions = generateDecisions(alerts);
   const aiActions = generateActions(aiDecisions);

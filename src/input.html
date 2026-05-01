@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BOSSA AI OS — Input</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header>
+    <h1>BOSSA AI OS — Input System</h1>
+    <p>Enter today’s restaurant signals. The dashboard will use this as live operator input.</p>
+  </header>
+
+  <nav>
+    <a href="./index.html">Dashboard</a>
+    <a href="./brief.html">Brief</a>
+    <a href="./decisions.html">Decisions</a>
+    <a class="active" href="./input.html">Input</a>
+  </nav>
+
+  <main>
+    <section class="card">
+      <h2>📝 Daily Operator Input</h2>
+
+      <label>Date</label>
+      <input id="date" type="date" />
+
+      <label>Revenue Today</label>
+      <input id="revenue" type="number" placeholder="32000" />
+
+      <label>Covers</label>
+      <input id="covers" type="number" placeholder="54" />
+
+      <label>Main Issue</label>
+      <input id="issue" type="text" placeholder="Slow weekday traffic" />
+
+      <label>Competitor Signal</label>
+      <input id="competitor" type="text" placeholder="Soi95 weekend promo" />
+
+      <label>Priority</label>
+      <select id="priority">
+        <option>High</option>
+        <option>Medium</option>
+        <option>Low</option>
+      </select>
+
+      <button id="saveInput">Save Input</button>
+      <button id="clearInput">Clear Input</button>
+
+      <p id="saveStatus"></p>
+    </section>
+  </main>
+
+  <script type="module" src="./input.js"></script>
+</body>
+</html>
