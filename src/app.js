@@ -3,10 +3,20 @@ import { analyzeKPIs } from './ai/analyzer.js';
 import { generateDecisions } from './ai/decision-engine.js';
 import { generateActions } from './ai/action-engine.js';
 
+const WEEKLY_BRIEF_FALLBACKS = {
+  biggestMovement: 'Weekend value offer pulling price-sensitive traffic',
+  recommendedMove: 'Protect brand, test value bundle, avoid direct discounting'
+};
+
 const setText = (id, value) => {
   const el = document.getElementById(id);
   if (el) el.textContent = value ?? '';
 };
+
+function displayValue(value, fallback = '') {
+  const normalized = String(value ?? '').trim();
+  return normalized && normalized !== '0' ? normalized : fallback;
+}
 
 function renderMeta(data) {
   setText('weekOf', data.weekOf);
@@ -29,9 +39,9 @@ function renderSignals(signals = []) {
   if (!el) return;
 
   el.innerHTML = signals.map(s => `
-    <div>
-      <strong class="${s.tag.toLowerCase()}">${s.text}</strong><br/>
-      <small>${s.tag} — ${s.owner}</small>
+    <div class="item">
+      <strong class="${String(s.tag || '').toLowerCase()}">${displayValue(s.text)}</strong><br/>
+      <small>${displayValue(s.tag, 'Watch')} — ${displayValue(s.owner, 'Unassigned')} — ${displayValue(s.status, 'Monitor')}</small>
     </div>
   `).join('');
 }
@@ -41,9 +51,9 @@ function renderDecisions(decisions = []) {
   if (!el) return;
 
   el.innerHTML = decisions.map(d => `
-    <div>
-      <strong>${d.text}</strong><br/>
-      <small>${d.status} — ${d.owner}</small>
+    <div class="item">
+      <strong>${displayValue(d.text)}</strong><br/>
+      <small>${displayValue(d.status, 'Open')} — ${displayValue(d.owner, 'Unassigned')} — ${displayValue(d.decisionDate)}</small>
     </div>
   `).join('');
 }
@@ -55,9 +65,9 @@ function renderBrief(data) {
   const b = data.weeklyBrief;
 
   el.innerHTML = `
-    <p><strong>Top:</strong> ${b.topThreat}</p>
-    <p><strong>Move:</strong> ${b.biggestMovement}</p>
-    <p><strong>Action:</strong> ${b.recommendedMove}</p>
+    <div class="item"><strong>Top:</strong> ${displayValue(b.topThreat)}</div>
+    <div class="item"><strong>Move:</strong> ${displayValue(b.biggestMovement, WEEKLY_BRIEF_FALLBACKS.biggestMovement)}</div>
+    <div class="item"><strong>Action:</strong> ${displayValue(b.recommendedMove, WEEKLY_BRIEF_FALLBACKS.recommendedMove)}</div>
   `;
 }
 
@@ -77,9 +87,9 @@ function renderActions(actions = []) {
   if (!el) return;
 
   el.innerHTML = actions.map(a => `
-    <div>
-      <strong>${a.title || a.text}</strong><br/>
-      <small>${a.priority}</small>
+    <div class="item action">
+      <strong>${displayValue(a.title || a.text)}</strong><br/>
+      <small>${displayValue(a.priority, 'Medium')} — ${displayValue(a.owner, 'Unassigned')} — ${displayValue(a.status, 'Open')} — ${displayValue(a.dueDate)}</small>
     </div>
   `).join('');
 }

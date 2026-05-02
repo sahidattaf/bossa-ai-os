@@ -45,6 +45,23 @@ function isZeroValue(value) {
   return value === 0 || cleanValue(value) === '0';
 }
 
+function formatDate(date) {
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeLastUpdated(value) {
+  if (typeof value === 'number') {
+    if (value > 1000000000000) return formatDate(new Date(value));
+    if (value > 1000000000) return formatDate(new Date(value * 1000));
+
+    const sheetsEpoch = Date.UTC(1899, 11, 30);
+    return formatDate(new Date(sheetsEpoch + value * 86400000));
+  }
+
+  return value;
+}
+
 function pickRawValue(source, keys) {
   for (const key of keys) {
     if (hasValue(source[key])) {
@@ -267,6 +284,7 @@ export function normalizeBossaData(rawData = {}) {
 
   return {
     ...source,
+    lastUpdated: normalizeLastUpdated(source.lastUpdated),
     weeklyBrief: normalizeWeeklyBrief(source.weeklyBrief),
     signals: normalizeSignals(source.signals),
     decisions: normalizeDecisions(source.decisions),
