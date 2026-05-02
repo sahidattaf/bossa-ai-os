@@ -1,4 +1,4 @@
-
+import loadBossaData from './google-sheets-adapter.js';
 import { analyzeKPIs } from './ai/analyzer.js';
 import { generateDecisions } from './ai/decision-engine.js';
 import { generateActions } from './ai/action-engine.js';
@@ -86,18 +86,21 @@ function renderActions(actions = []) {
 
 function applySavedInput(data) {
   const savedInput = JSON.parse(localStorage.getItem('bossaDailyInput') || '{}');
+  const nextData = {
+    ...data,
+    kpis: { ...(data.kpis || {}) },
+    signals: [...(data.signals || [])]
+  };
 
-  if (!data.kpis) data.kpis = {};
-
-  if (savedInput.revenue) data.kpis.revenue = savedInput.revenue;
-  if (savedInput.covers) data.kpis.covers = savedInput.covers;
+  if (savedInput.revenue) nextData.kpis.revenue = savedInput.revenue;
+  if (savedInput.covers) nextData.kpis.covers = savedInput.covers;
 
   if (savedInput.issue) {
-    data.bossSummary = `${data.bossSummary} Today’s issue: ${savedInput.issue}.`;
+    nextData.bossSummary = `${nextData.bossSummary} Today's issue: ${savedInput.issue}.`;
   }
 
   if (savedInput.competitor) {
-    data.signals.unshift({
+    nextData.signals.unshift({
       text: savedInput.competitor,
       tag: savedInput.priority || 'High',
       owner: 'Owner Input',
@@ -105,40 +108,16 @@ function applySavedInput(data) {
     });
   }
 
-  // 👉 NEW: show last input
-  const noteEl = document.getElementById("lastInputNote");
+  const noteEl = document.getElementById('lastInputNote');
   if (noteEl && savedInput.date) {
     noteEl.textContent = `Last input: ${savedInput.date} • Priority: ${savedInput.priority || 'High'}`;
   }
 
-  return data;
-}
-  const savedInput = JSON.parse(localStorage.getItem('bossaDailyInput') || '{}');
-
-  if (!data.kpis) data.kpis = {};
-
-  if (savedInput.revenue) data.kpis.revenue = savedInput.revenue;
-  if (savedInput.covers) data.kpis.covers = savedInput.covers;
-
-  if (savedInput.issue) {
-    data.bossSummary = `${data.bossSummary} Today’s issue: ${savedInput.issue}.`;
-  }
-
-  if (savedInput.competitor) {
-    data.signals.unshift({
-      text: savedInput.competitor,
-      tag: savedInput.priority || 'High',
-      owner: 'Owner Input',
-      status: 'Active'
-    });
-  }
-
-  return data;
+  return nextData;
 }
 
 async function loadDashboard() {
-  const res = await fetch('./data.json');
-  let data = await res.json();
+  let data = await loadBossaData();
 
   data = applySavedInput(data);
 
@@ -152,9 +131,10 @@ async function loadDashboard() {
   const alerts = analyzeKPIs(data);
   const aiDecisions = generateDecisions(alerts);
   const aiActions = generateActions(aiDecisions);
+  const actions = data.actions?.length ? data.actions : aiActions;
 
   renderAIDecisions(aiDecisions);
-  renderActions(aiActions);
+  renderActions(actions);
 }
 
 loadDashboard();
