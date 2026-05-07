@@ -1,0 +1,18 @@
+{
+  "name": "bossa-ai-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-powered restaurant operating system prototype for BOSSA Asado i Mar.",
+  "scripts": {
+    "dev": "python -m http.server 8000 -d src",
+    "start": "python -m http.server 8000 -d src"
+  },
+  "keywords": [
+    "restaurant-ops",
+    "ai-dashboard",
+    "bossa-asado-i-mar",
+    "curacao",
+    "decision-system"
+  ],
+  "license": "UNLICENSED"
+}
