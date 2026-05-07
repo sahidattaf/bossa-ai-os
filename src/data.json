@@ -6,7 +6,12 @@
   "pricingActions": 2,
   "openDecisions": 2,
   "bossSummary": "Protect premium perception, test one value bundle, and avoid reactive discounting this week.",
-
+  "kpis": {
+    "revenue": 45000,
+    "targetRevenue": 120000,
+    "covers": 65,
+    "targetCovers": 180
+  },
   "signals": [
     {
       "text": "Soi95 running aggressive weekend promo",
@@ -27,13 +32,11 @@
       "status": "Review"
     }
   ],
-
   "weeklyBrief": {
     "topThreat": "Soi95",
     "biggestMovement": "Weekend value offer pulling price-sensitive traffic",
     "recommendedMove": "Protect brand, test value bundle, avoid direct discounting"
   },
-
   "decisions": [
     {
       "text": "Bundle test for weekend traffic",
@@ -48,7 +51,6 @@
       "decisionDate": "2026-04-15"
     }
   ],
-
   "actions": [
     {
       "text": "Launch value bundle test",
