@@ -28,7 +28,7 @@ const DEFAULTS = {
 };
 
 function getLiveDataUrl() {
-  return window.BOSSA_CONFIG?.GOOGLE_APPS_SCRIPT_WEB_APP_URL || '';
+  return globalThis.BOSSA_CONFIG?.GOOGLE_APPS_SCRIPT_WEB_APP_URL || '';
 }
 
 function cleanValue(value) {
