@@ -1,4 +1,4 @@
-import loadBossaData from './google-sheets-adapter.js';
+import loadBossaData from './adapters/google-sheets-adapter.js';
 import { analyzeKPIs } from './ai/analyzer.js';
 import { generateDecisions } from './ai/decision-engine.js';
 import { generateActions } from './ai/action-engine.js';
@@ -76,8 +76,9 @@ function renderAIDecisions(list = []) {
   if (!el) return;
 
   el.innerHTML = list.map(d => `
-    <div>
-      🧠 ${d}
+    <div class="item">
+      <strong>${displayValue(d.text)}</strong><br/>
+      <small>${displayValue(d.priority, 'Medium')} — ${displayValue(d.owner, 'BossVisionGPT')} — ${displayValue(d.sourceAlert, 'Weekly review')}</small>
     </div>
   `).join('');
 }
