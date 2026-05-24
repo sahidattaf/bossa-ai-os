@@ -9,7 +9,7 @@
 <body>
   <header>
     <h1>BOSSA AI OS — Input System</h1>
-    <p>Enter today’s restaurant signals. The dashboard will use this as live operator input.</p>
+    <p>Enter live KPI, decision, and weekly brief updates into Supabase safely.</p>
   </header>
 
   <nav>
@@ -21,19 +21,103 @@
 
   <main>
     <section class="card">
-      <h2>📝 Daily Operator Input</h2>
+      <h2>🔐 Operator Login</h2>
+      <p class="objective">Only approved BOSSA operators can write to Supabase. Customer/PII tables remain blocked.</p>
+
+      <label>Email</label>
+      <input id="operatorEmail" type="email" placeholder="you@example.com" />
+
+      <div class="button-row">
+        <button id="sendMagicLink">Send Magic Link</button>
+        <button id="signOutOperator" class="secondary">Sign Out</button>
+      </div>
+
+      <p id="authStatus"></p>
+    </section>
+
+    <section class="card">
+      <h2>📊 Daily KPI Input</h2>
 
       <label>Date</label>
       <input id="date" type="date" />
 
       <label>Revenue Today</label>
-      <input id="revenue" type="number" placeholder="32000" />
+      <input id="revenue" type="number" min="0" step="0.01" placeholder="32000" />
 
-      <label>Covers</label>
-      <input id="covers" type="number" placeholder="54" />
+      <label>Bookings / Covers</label>
+      <input id="covers" type="number" min="0" step="1" placeholder="54" />
 
-      <label>Main Issue</label>
+      <label>Orders</label>
+      <input id="orders" type="number" min="0" step="1" placeholder="20" />
+
+      <label>WhatsApp Inquiries</label>
+      <input id="whatsappInquiries" type="number" min="0" step="1" placeholder="12" />
+
+      <label>Posts Published</label>
+      <input id="postsPublished" type="number" min="0" step="1" placeholder="3" />
+
+      <label>Reach</label>
+      <input id="reach" type="number" min="0" step="1" placeholder="2500" />
+
+      <label>Main Issue / KPI Notes</label>
       <input id="issue" type="text" placeholder="Slow weekday traffic" />
+
+      <button id="saveKpi">Save KPI to Supabase</button>
+    </section>
+
+    <section class="card">
+      <h2>🧾 Decision Log Input</h2>
+
+      <label>Decision</label>
+      <input id="decisionText" type="text" placeholder="Test Friday seafood grill promo for 4 weeks" />
+
+      <label>Reason</label>
+      <input id="decisionReason" type="text" placeholder="Competitors are pushing seafood weekends" />
+
+      <label>Expected Result</label>
+      <input id="expectedResult" type="text" placeholder="Increase Friday dinner traffic by 15%" />
+
+      <label>Owner</label>
+      <input id="decisionOwner" type="text" placeholder="Coach Sahid" />
+
+      <label>Status</label>
+      <select id="decisionStatus">
+        <option>active</option>
+        <option>open</option>
+        <option>pending</option>
+        <option>completed</option>
+      </select>
+
+      <button id="saveDecision">Save Decision to Supabase</button>
+    </section>
+
+    <section class="card">
+      <h2>🧠 Weekly Brief Input</h2>
+
+      <label>Week Start</label>
+      <input id="weekStart" type="date" />
+
+      <label>Week End</label>
+      <input id="weekEnd" type="date" />
+
+      <label>Summary</label>
+      <textarea id="briefSummary" rows="3" placeholder="This week’s main operating story..."></textarea>
+
+      <label>Opportunities</label>
+      <textarea id="briefOpportunities" rows="3" placeholder="What can BOSSA use this week?"></textarea>
+
+      <label>Risks</label>
+      <textarea id="briefRisks" rows="3" placeholder="What needs attention?"></textarea>
+
+      <label>Next Actions</label>
+      <textarea id="briefNextActions" rows="3" placeholder="What should happen next?"></textarea>
+
+      <button id="saveBrief">Save Weekly Brief to Supabase</button>
+    </section>
+
+    <section class="card">
+      <h2>💾 Local Backup</h2>
+      <p class="objective">This keeps the old browser-only input available as backup. It does not write to Supabase.</p>
 
       <label>Competitor Signal</label>
       <input id="competitor" type="text" placeholder="Soi95 weekend promo" />
@@ -45,13 +129,17 @@
         <option>Low</option>
       </select>
 
-      <button id="saveInput">Save Input</button>
-      <button id="clearInput">Clear Input</button>
+      <div class="button-row">
+        <button id="saveInput" class="secondary">Save Local Backup</button>
+        <button id="clearInput" class="secondary">Clear Local Backup</button>
+      </div>
 
       <p id="saveStatus"></p>
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./adapters/supabaseAdapter.js"></script>
   <script type="module" src="./input.js"></script>
 </body>
 </html>
