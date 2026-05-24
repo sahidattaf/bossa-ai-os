@@ -16,11 +16,12 @@ create table if not exists private.bossa_operator_emails (
 revoke all on schema private from anon, authenticated;
 revoke all on all tables in schema private from anon, authenticated;
 
-create or replace function public.is_bossa_operator()
+-- Private helper used by RLS policies only. Kept outside exposed public schema.
+create or replace function private.is_bossa_operator()
 returns boolean
 language sql
 security definer
-set search_path = public, private, auth
+set search_path = private, auth
 as $$
   select exists (
     select 1
@@ -57,41 +58,52 @@ create trigger set_weekly_briefs_created_by
 before insert on public.weekly_briefs
 for each row execute function public.set_created_by_from_auth();
 
+-- KPI daily write policies
+drop policy if exists "operator_insert_kpi_daily" on public.kpi_daily;
 create policy "operator_insert_kpi_daily"
 on public.kpi_daily
 for insert
 to authenticated
-with check (public.is_bossa_operator());
+with check (private.is_bossa_operator());
 
+drop policy if exists "operator_update_kpi_daily" on public.kpi_daily;
 create policy "operator_update_kpi_daily"
 on public.kpi_daily
 for update
 to authenticated
-using (public.is_bossa_operator())
-with check (public.is_bossa_operator());
+using (private.is_bossa_operator())
+with check (private.is_bossa_operator());
 
+-- Decision log write policies
+drop policy if exists "operator_insert_decision_log" on public.decision_log;
 create policy "operator_insert_decision_log"
 on public.decision_log
 for insert
 to authenticated
-with check (public.is_bossa_operator());
+with check (private.is_bossa_operator());
 
+drop policy if exists "operator_update_decision_log" on public.decision_log;
 create policy "operator_update_decision_log"
 on public.decision_log
 for update
 to authenticated
-using (public.is_bossa_operator())
-with check (public.is_bossa_operator());
+using (private.is_bossa_operator())
+with check (private.is_bossa_operator());
 
+-- Weekly brief write policies
+drop policy if exists "operator_insert_weekly_briefs" on public.weekly_briefs;
 create policy "operator_insert_weekly_briefs"
 on public.weekly_briefs
 for insert
 to authenticated
-with check (public.is_bossa_operator());
+with check (private.is_bossa_operator());
 
+drop policy if exists "operator_update_weekly_briefs" on public.weekly_briefs;
 create policy "operator_update_weekly_briefs"
 on public.weekly_briefs
 for update
 to authenticated
-using (public.is_bossa_operator())
-with check (public.is_bossa_operator());
+using (private.is_bossa_operator())
+with check (private.is_bossa_operator());
+
+drop function if exists public.is_bossa_operator();
