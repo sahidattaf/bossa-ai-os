@@ -1,4 +1,5 @@
 import loadBossaData from './adapters/google-sheets-adapter.js';
+import { canUseSupabaseDashboardData, loadSupabaseDashboardData } from './adapters/supabase-dashboard-adapter.js';
 import { analyzeKPIs } from './ai/analyzer.js';
 import { generateDecisions } from './ai/decision-engine.js';
 import { generateActions } from './ai/action-engine.js';
@@ -16,6 +17,19 @@ const setText = (id, value) => {
 function displayValue(value, fallback = '') {
   const normalized = String(value ?? '').trim();
   return normalized && normalized !== '0' ? normalized : fallback;
+}
+
+async function loadDashboardData() {
+  if (canUseSupabaseDashboardData()) {
+    try {
+      console.info('Loading BOSSA dashboard from Supabase.');
+      return await loadSupabaseDashboardData();
+    } catch (error) {
+      console.warn('Supabase dashboard read failed. Falling back to existing data source.', error);
+    }
+  }
+
+  return loadBossaData();
 }
 
 function renderMeta(data) {
@@ -128,7 +142,7 @@ function applySavedInput(data) {
 }
 
 async function loadDashboard() {
-  let data = await loadBossaData();
+  let data = await loadDashboardData();
 
   data = applySavedInput(data);
 
