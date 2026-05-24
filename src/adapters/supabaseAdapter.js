@@ -3,17 +3,18 @@
 // Requires the Supabase browser SDK to be loaded before this file:
 // <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 //
-// Local config example:
-// globalThis.BOSSA_CONFIG = {
-//   SUPABASE_URL: "https://oqmftkttkfktyzefswpz.supabase.co",
-//   SUPABASE_PUBLISHABLE_KEY: "sb_publishable_..."
-// };
+// Security note:
+// The fallback publishable key is a public browser key. It is only paired with
+// read-only RLS policies for non-PII dashboard tables. Customer/PII tables stay blocked.
 
 (function initBossaSupabaseAdapter(globalScope) {
   const config = globalScope.BOSSA_CONFIG || {};
 
-  const SUPABASE_URL = config.SUPABASE_URL || "";
-  const SUPABASE_PUBLISHABLE_KEY = config.SUPABASE_PUBLISHABLE_KEY || "";
+  const DEFAULT_SUPABASE_URL = "https://oqmftkttkfktyzefswpz.supabase.co";
+  const DEFAULT_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_kvP4TK0pxuj7A3nW_7fgjg_SouElsbH";
+
+  const SUPABASE_URL = config.SUPABASE_URL || DEFAULT_SUPABASE_URL;
+  const SUPABASE_PUBLISHABLE_KEY = config.SUPABASE_PUBLISHABLE_KEY || DEFAULT_SUPABASE_PUBLISHABLE_KEY;
 
   function isConfigured() {
     return Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
