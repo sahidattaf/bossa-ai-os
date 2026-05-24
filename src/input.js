@@ -11,6 +11,8 @@ const saveKpiButton = document.getElementById('saveKpi');
 const saveDecisionButton = document.getElementById('saveDecision');
 const saveBriefButton = document.getElementById('saveBrief');
 
+const PRODUCTION_INPUT_URL = 'https://bossa-ai-os.vercel.app/input.html';
+
 function getValue(id) {
   return document.getElementById(id)?.value?.trim() || '';
 }
@@ -74,7 +76,8 @@ async function sendMagicLink() {
     const { error } = await client.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: window.location.href
+        shouldCreateUser: false,
+        emailRedirectTo: PRODUCTION_INPUT_URL
       }
     });
 
