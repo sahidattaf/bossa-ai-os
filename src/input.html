@@ -9,7 +9,7 @@
 <body>
   <header>
     <h1>BOSSA AI OS — Input System</h1>
-    <p>Enter live KPI, decision, and weekly brief updates into Supabase safely.</p>
+    <p>Enter live KPI, campaign, content calendar, decision, and weekly brief updates into Supabase safely.</p>
   </header>
 
   <nav>
@@ -33,6 +33,103 @@
       </div>
 
       <p id="authStatus"></p>
+    </section>
+
+    <section class="card">
+      <h2>🔥 Campaign Input</h2>
+
+      <label>Campaign Name</label>
+      <input id="campaignName" type="text" placeholder="Weekend Fire Box Push" />
+
+      <label>Offer</label>
+      <input id="campaignOffer" type="text" placeholder="Fire Box promo for locals and tourists" />
+
+      <label>Platform</label>
+      <input id="campaignPlatform" type="text" placeholder="Instagram + WhatsApp" />
+
+      <label>Status</label>
+      <select id="campaignStatus">
+        <option>draft</option>
+        <option>active</option>
+        <option>paused</option>
+        <option>completed</option>
+      </select>
+
+      <label>Start Date</label>
+      <input id="campaignStartDate" type="date" />
+
+      <label>End Date</label>
+      <input id="campaignEndDate" type="date" />
+
+      <label>Goal</label>
+      <input id="campaignGoal" type="text" placeholder="Increase WhatsApp orders by 20%" />
+
+      <button id="saveCampaign">Save Campaign to Supabase</button>
+    </section>
+
+    <section class="card">
+      <h2>📅 Content Calendar Input</h2>
+      <p class="objective">Create scheduled content items linked to a campaign name. If no campaign is selected, the item is saved as standalone content.</p>
+
+      <label>Campaign Name to Link</label>
+      <input id="contentCampaignName" type="text" placeholder="Weekend Fire Box Push" />
+
+      <label>Content Title</label>
+      <input id="contentTitle" type="text" placeholder="Friday Fire Box Story" />
+
+      <label>Content Type</label>
+      <select id="contentType">
+        <option>Instagram Post</option>
+        <option>Instagram Story</option>
+        <option>Reel</option>
+        <option>WhatsApp Broadcast</option>
+        <option>YouTube Short</option>
+        <option>Flyer</option>
+        <option>Email</option>
+      </select>
+
+      <label>Platform</label>
+      <input id="contentPlatform" type="text" placeholder="Instagram" />
+
+      <label>Language</label>
+      <select id="contentLanguage">
+        <option>en</option>
+        <option>pap</option>
+        <option>nl</option>
+        <option>es</option>
+        <option>pt</option>
+      </select>
+
+      <label>Scheduled Date</label>
+      <input id="contentScheduledDate" type="date" />
+
+      <label>Scheduled Time</label>
+      <input id="contentScheduledTime" type="time" />
+
+      <label>Owner</label>
+      <input id="contentOwner" type="text" placeholder="MarketingGPT" />
+
+      <label>Status</label>
+      <select id="contentStatus">
+        <option>draft</option>
+        <option>scheduled</option>
+        <option>published</option>
+        <option>needs review</option>
+      </select>
+
+      <label>Caption / Message</label>
+      <textarea id="contentCaption" rows="3" placeholder="Caption or WhatsApp message..."></textarea>
+
+      <label>CTA</label>
+      <input id="contentCta" type="text" placeholder="Order via WhatsApp" />
+
+      <label>Asset URL</label>
+      <input id="contentAssetUrl" type="url" placeholder="https://..." />
+
+      <label>Notes</label>
+      <textarea id="contentNotes" rows="3" placeholder="Design notes, image direction, approval notes..."></textarea>
+
+      <button id="saveContentItem">Save Content Item to Supabase</button>
     </section>
 
     <section class="card">

@@ -5,6 +5,8 @@ const authStatus = document.getElementById('authStatus');
 
 const sendMagicLinkButton = document.getElementById('sendMagicLink');
 const signOutButton = document.getElementById('signOutOperator');
+const saveCampaignButton = document.getElementById('saveCampaign');
+const saveContentItemButton = document.getElementById('saveContentItem');
 const saveKpiButton = document.getElementById('saveKpi');
 const saveDecisionButton = document.getElementById('saveDecision');
 const saveBriefButton = document.getElementById('saveBrief');
@@ -94,6 +96,75 @@ async function signOutOperator() {
   }
 }
 
+async function findCampaignByName(name) {
+  if (!name) return null;
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('campaigns')
+    .select('id,name')
+    .ilike('name', name)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+async function saveCampaignToSupabase() {
+  try {
+    await ensureSignedIn();
+
+    const name = getValue('campaignName');
+    if (!name) throw new Error('Campaign name is required.');
+
+    await globalThis.BossaSupabaseAdapter.insertRow('campaigns', {
+      name,
+      offer: getValue('campaignOffer'),
+      platform: getValue('campaignPlatform'),
+      status: getValue('campaignStatus') || 'draft',
+      start_date: getValue('campaignStartDate') || null,
+      end_date: getValue('campaignEndDate') || null,
+      goal: getValue('campaignGoal')
+    });
+
+    setStatus(`Campaign saved: ${name}. Refresh Dashboard to see it live.`, 'success');
+  } catch (error) {
+    setStatus(`Campaign save failed: ${error.message}`, 'error');
+  }
+}
+
+async function saveContentItemToSupabase() {
+  try {
+    await ensureSignedIn();
+
+    const title = getValue('contentTitle');
+    if (!title) throw new Error('Content title is required.');
+
+    const linkedCampaign = await findCampaignByName(getValue('contentCampaignName'));
+
+    await globalThis.BossaSupabaseAdapter.insertRow('content_items', {
+      campaign_id: linkedCampaign?.id || null,
+      title,
+      content_type: getValue('contentType'),
+      platform: getValue('contentPlatform'),
+      language: getValue('contentLanguage') || 'en',
+      scheduled_date: getValue('contentScheduledDate') || null,
+      scheduled_time: getValue('contentScheduledTime') || null,
+      owner: getValue('contentOwner') || 'MarketingGPT',
+      status: getValue('contentStatus') || 'draft',
+      caption: getValue('contentCaption'),
+      cta: getValue('contentCta'),
+      asset_url: getValue('contentAssetUrl'),
+      notes: getValue('contentNotes')
+    });
+
+    const linkText = linkedCampaign ? ` linked to ${linkedCampaign.name}` : ' as standalone content';
+    setStatus(`Content item saved${linkText}.`, 'success');
+  } catch (error) {
+    setStatus(`Content save failed: ${error.message}`, 'error');
+  }
+}
+
 async function saveKpiToSupabase() {
   try {
     await ensureSignedIn();
@@ -177,6 +248,8 @@ function loadSavedInput() {
   weekEnd.setDate(today.getDate() + 6);
   document.getElementById('weekStart').value ||= today.toISOString().slice(0, 10);
   document.getElementById('weekEnd').value ||= weekEnd.toISOString().slice(0, 10);
+  document.getElementById('campaignStartDate').value ||= today.toISOString().slice(0, 10);
+  document.getElementById('contentScheduledDate').value ||= today.toISOString().slice(0, 10);
 }
 
 saveButton.addEventListener('click', () => {
@@ -202,6 +275,8 @@ clearButton.addEventListener('click', () => {
 
 sendMagicLinkButton.addEventListener('click', sendMagicLink);
 signOutButton.addEventListener('click', signOutOperator);
+saveCampaignButton.addEventListener('click', saveCampaignToSupabase);
+saveContentItemButton.addEventListener('click', saveContentItemToSupabase);
 saveKpiButton.addEventListener('click', saveKpiToSupabase);
 saveDecisionButton.addEventListener('click', saveDecisionToSupabase);
 saveBriefButton.addEventListener('click', saveWeeklyBriefToSupabase);
