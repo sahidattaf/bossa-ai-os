@@ -11,6 +11,46 @@ const saveKpiButton = document.getElementById('saveKpi');
 const saveDecisionButton = document.getElementById('saveDecision');
 const saveBriefButton = document.getElementById('saveBrief');
 
+const PRODUCTION_INPUT_URL = 'https://bossa-ai-os.vercel.app/input.html';
+
+function getRedirectUrl() {
+  const currentUrl = new URL(window.location.href);
+  const isLocalhost = ['localhost', '127.0.0.1'].includes(currentUrl.hostname);
+  const isProduction = currentUrl.hostname === 'bossa-ai-os.vercel.app';
+
+  if (isProduction) {
+    return `${currentUrl.origin}/input.html`;
+  }
+
+  if (isLocalhost) {
+    return currentUrl.href.split('#')[0];
+  }
+
+  return PRODUCTION_INPUT_URL;
+}
+
+async function hydrateSessionFromHash() {
+  const hash = window.location.hash;
+  if (!hash || !hash.includes('access_token')) return false;
+
+  const client = requireSupabase();
+  const params = new URLSearchParams(hash.replace(/^#/, ''));
+  const accessToken = params.get('access_token');
+  const refreshToken = params.get('refresh_token');
+
+  if (!accessToken || !refreshToken) return false;
+
+  const { error } = await client.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken
+  });
+
+  if (error) throw error;
+
+  window.history.replaceState({}, document.title, window.location.pathname);
+  return true;
+}
+
 function getValue(id) {
   return document.getElementById(id)?.value?.trim() || '';
 }
@@ -43,9 +83,11 @@ async function getSession() {
 
 async function refreshAuthStatus() {
   try {
+    const didHydrate = await hydrateSessionFromHash();
     const session = await getSession();
     if (session?.user?.email) {
-      setStatus(`Signed in as ${session.user.email}. Supabase writes are enabled for approved operators.`, 'success');
+      const prefix = didHydrate ? 'Magic link accepted. ' : '';
+      setStatus(`${prefix}Signed in as ${session.user.email}. Supabase writes are enabled for approved operators.`, 'success');
       return session;
     }
 
@@ -74,7 +116,8 @@ async function sendMagicLink() {
     const { error } = await client.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: window.location.href
+        shouldCreateUser: false,
+        emailRedirectTo: getRedirectUrl()
       }
     });
 
