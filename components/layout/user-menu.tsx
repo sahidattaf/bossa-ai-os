@@ -15,6 +15,8 @@ import { useToast } from "@/components/ui/use-toast";
 export interface UserMenuProps {
   name: string;
   role: string;
+  /** Real sign-out (a Supabase server action) in `supabase` mode; omitted in `mock` mode, where sign-out is a no-op demo toast. */
+  onSignOut?: () => void | Promise<void>;
 }
 
 function initialsFor(name: string): string {
@@ -26,7 +28,7 @@ function initialsFor(name: string): string {
     .toUpperCase();
 }
 
-function UserMenu({ name, role }: UserMenuProps) {
+function UserMenu({ name, role, onSignOut }: UserMenuProps) {
   const { toast } = useToast();
 
   return (
@@ -62,7 +64,9 @@ function UserMenu({ name, role }: UserMenuProps) {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={() =>
-            toast({ title: "Sign out", description: "Authentication arrives in Phase 2." })
+            onSignOut
+              ? onSignOut()
+              : toast({ title: "Sign out", description: "Nothing to sign out of in demo mode." })
           }
         >
           <LogOut className="h-4 w-4" />
