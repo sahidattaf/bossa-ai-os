@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 
+import { DashboardGrid } from "@/components/dashboard/dashboard-grid";
 import { PageHeader } from "@/components/layout/page-header";
-import { Skeleton } from "@/components/ui/skeleton";
+import { dashboardDataProvider } from "@/lib/dashboard/mock-provider";
 import { getTenantBySlug } from "@/lib/tenancy/tenants";
 
 export default async function DashboardPage({
@@ -16,14 +17,12 @@ export default async function DashboardPage({
     notFound();
   }
 
+  const data = await dashboardDataProvider.getDashboardData(tenant.id);
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Dashboard" description={`${tenant.name} — executive overview`} />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, index) => (
-          <Skeleton key={index} className="h-28 w-full" />
-        ))}
-      </div>
+      <DashboardGrid tenant={tenant} data={data} />
     </div>
   );
 }
