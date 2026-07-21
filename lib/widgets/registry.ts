@@ -15,14 +15,18 @@ import type { TenantConfig, WidgetKey } from "@/lib/tenancy/types";
 import type { AnyWidgetDefinition } from "@/lib/widgets/types";
 import { defineWidget } from "@/lib/widgets/types";
 
+/**
+ * KpiCardWidget renders its own (sometimes tenant-specific, e.g. product KPI)
+ * label internally, so the WidgetFrame card header is left blank to avoid
+ * showing the label twice.
+ */
 function kpiWidget(
   key: WidgetKey,
-  title: string,
   selectData: (data: DashboardData, tenant: TenantConfig) => KpiCardData,
 ): AnyWidgetDefinition {
   return defineWidget<KpiCardData>({
     key,
-    title,
+    title: "",
     defaultSize: "sm",
     component: KpiCardWidget,
     selectData,
@@ -38,41 +42,41 @@ const WIDGET_DEFINITIONS: Record<WidgetKey, AnyWidgetDefinition> = {
     selectData: (data, tenant) => ({ ...data.greeting, serviceStatus: tenant.serviceStatus }),
   }),
 
-  revenueToday: kpiWidget("revenueToday", "Revenue Today", (data, tenant) => ({
+  revenueToday: kpiWidget("revenueToday", (data, tenant) => ({
     label: "Revenue Today",
     value: formatCurrency(data.revenueToday.amount, tenant.currency, tenant.locale),
     trend: formatTrend(data.revenueToday.trend),
     helpText: `Target ${formatCurrency(data.revenueToday.targetAmount, tenant.currency, tenant.locale)}`,
   })),
 
-  ordersToday: kpiWidget("ordersToday", "Orders Today", (data, tenant) => ({
+  ordersToday: kpiWidget("ordersToday", (data, tenant) => ({
     label: "Orders Today",
     value: formatNumber(data.ordersToday.count, tenant.locale),
     trend: formatTrend(data.ordersToday.trend),
   })),
 
-  reservationsTonight: kpiWidget("reservationsTonight", "Reservations Tonight", (data) => ({
+  reservationsTonight: kpiWidget("reservationsTonight", (data) => ({
     label: "Reservations Tonight",
     value: `${data.reservationsTonight.count} / ${data.reservationsTonight.capacity}`,
     trend: formatTrend(data.reservationsTonight.trend),
     helpText: "Covers booked vs capacity",
   })),
 
-  whatsappLeads: kpiWidget("whatsappLeads", "WhatsApp Leads", (data) => ({
+  whatsappLeads: kpiWidget("whatsappLeads", (data) => ({
     label: "WhatsApp Leads",
     value: String(data.whatsappLeads.unanswered),
     trend: formatTrend(data.whatsappLeads.trend, "increase-is-bad"),
     helpText: `${data.whatsappLeads.totalToday} conversations today`,
   })),
 
-  reviewScore: kpiWidget("reviewScore", "Review Score", (data) => ({
+  reviewScore: kpiWidget("reviewScore", (data) => ({
     label: "Review Score",
     value: `${data.reviewScore.average.toFixed(1)} ★`,
     trend: formatTrend(data.reviewScore.trend),
     helpText: `${data.reviewScore.totalReviews} reviews`,
   })),
 
-  productKpi: kpiWidget("productKpi", "Product KPI", (data, tenant) => ({
+  productKpi: kpiWidget("productKpi", (data, tenant) => ({
     label: tenant.productKpi.label,
     value: tenant.productKpi.unit
       ? `${formatNumber(data.productKpi.value, tenant.locale)} ${tenant.productKpi.unit}`
@@ -80,14 +84,14 @@ const WIDGET_DEFINITIONS: Record<WidgetKey, AnyWidgetDefinition> = {
     trend: formatTrend(data.productKpi.trend),
   })),
 
-  foodCostPercentage: kpiWidget("foodCostPercentage", "Food Cost %", (data) => ({
+  foodCostPercentage: kpiWidget("foodCostPercentage", (data) => ({
     label: "Food Cost %",
     value: formatPercentage(data.foodCostPercentage.value),
     trend: formatTrend(data.foodCostPercentage.trend, "increase-is-bad"),
     helpText: `Target ${formatPercentage(data.foodCostPercentage.targetValue)}`,
   })),
 
-  laborPercentage: kpiWidget("laborPercentage", "Labor %", (data) => ({
+  laborPercentage: kpiWidget("laborPercentage", (data) => ({
     label: "Labor %",
     value: formatPercentage(data.laborPercentage.value),
     trend: formatTrend(data.laborPercentage.trend, "increase-is-bad"),
