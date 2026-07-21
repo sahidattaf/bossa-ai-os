@@ -1,150 +1,168 @@
-# BOSSA AI OS
+# Hospitality OS (bossa-ai-os)
 
-Internal AI-powered operating system prototype for **BOSSA Asado i Mar** — a Curaçao fire-grill restaurant and rooftop hospitality concept.
-
-BOSSA AI OS turns scattered restaurant signals into a weekly operating rhythm:
+Multi-tenant Hospitality OS platform. **BOSSA Asado i Mar** (Tenant 001, a Curaçao fire-grill restaurant) and **Papai Since 1933** (Tenant 002) run from one Next.js codebase with isolated branding, configuration, and demo data.
 
 ```text
-Market Signals → Weekly Brief → Decisions → Actions → Learning Loop
+Signals → Analysis → Recommendation → Approval → Action → Outcome → Memory
 ```
 
-The current version is a lightweight static dashboard that can run locally, connect to Google Sheets through Apps Script, and fall back to local demo data when no live source is configured.
+Full architecture, database domains, AI Executive design, and the multi-phase migration plan live in [`docs/MULTI_TENANT_HOSPITALITY_OS_ARCHITECTURE.md`](docs/MULTI_TENANT_HOSPITALITY_OS_ARCHITECTURE.md). This README covers what's actually built (Phase 1) and how to run it.
 
 ---
 
-## Dashboard Preview
+## Repository responsibilities
 
-[BOSSA AI OS Dashboard](src/assets/bossa-ai-os-dashboard.png)
-
----
-
-## Status
-
-| Area | Status |
+| Repository | Responsibility |
 | --- | --- |
-| Dashboard prototype | Active |
-| Google Sheets adapter | Active with fallback data |
-| AI decision rules | Prototype |
-| Backend/API | Not yet implemented |
-| Deployment | Static hosting ready |
+| `bossa-ai-os` (this repo) | Internal multi-tenant SaaS application, dashboards, workflows, data, AI manager, tenant administration |
+| `hospitality-os-plugin` | Reusable AI skills, prompts, agent playbooks, validation, schemas, orchestration logic |
+| `BOSSA-ASADO-I-MAR` | Public BOSSA website, SEO, menu, customer acquisition, lead capture |
+
+Don't merge these responsibilities across repos.
 
 ---
 
-## What This Repo Is
+## Architecture summary (Phase 1)
 
-This repo is the **technical AI Ops product** for Bossa.
+- **Next.js 15 App Router + React 19 + TypeScript strict**, at the repository root.
+- **Tailwind CSS** with semantic design tokens (`app/globals.css`, `tailwind.config.ts`) — no tenant color is hard-coded into a shared component.
+- **shadcn/ui-compatible primitives** (`components/ui/`) built on Radix UI + `class-variance-authority`.
+- **Tenant configuration** (`lib/tenancy/`) resolves `/[organizationSlug]` to a typed `TenantConfig` and generates that tenant's CSS variable overrides.
+- **Widget system** (`lib/widgets/`) — a typed, Zod-validated registry mapping each dashboard widget key to a component and a data selector.
+- **Provider-neutral data layer** (`lib/dashboard/`) — `DashboardDataProvider` interface, currently backed by `MockDashboardDataProvider`. No dashboard component imports mock data directly.
+- No Supabase dependency yet — that's Phase 2.
 
-It is designed to help the owner and team answer:
-
-- What changed this week?
-- Which risks need attention?
-- Which decision should we make now?
-- Who owns the next action?
-- What did we learn after execution?
-
----
-
-## What This Repo Is Not
-
-This is not the full business plan or investor archive. Keep those in the business codex repo:
-
-- `BOSSA-ASADO-I-MAR` → business, brand, menu, investor, and concept archive
-- `bossa-ai-os` → dashboard, decision logic, data schemas, and AI Ops workflow
+```text
+app/(workspace)/[organizationSlug]/
+├── layout.tsx        # resolves tenant, 404s on unknown slug, wraps in AppShell
+├── dashboard/         # fully built (this phase's focus)
+└── {orders,reservations,crm,kitchen,menu,inventory,suppliers,
+     reviews,marketing,finance,staff,tasks,reports,integrations,
+     settings,ai-executive}/   # routed, styled, phase-tagged "coming soon"
+```
 
 ---
 
-## Current Features
+## Installation
 
-- Executive dashboard for signals, decisions, actions, and weekly brief
-- High-priority action focus mode
-- Google Sheets / Apps Script data loading
-- Local `data.json` fallback for demos
-- Modular AI logic:
-  - KPI analyzer
-  - decision engine
-  - action engine
-  - scoring rules
-- Local daily input stored in browser `localStorage`
+Requires Node.js 20+ and npm.
 
----
+```bash
+npm install
+```
 
-## Run Locally
-
-Using npm:
+## Development
 
 ```bash
 npm run dev
 ```
 
-Or directly:
+Open `http://localhost:3000` — it links to `/bossa/dashboard` and `/papai/dashboard`.
+
+## Validation
 
 ```bash
-cd src
-python -m http.server 8000
+npm run lint        # eslint .
+npm run typecheck   # tsc --noEmit
+npm run test         # vitest run (unit tests)
+npm run test:e2e     # playwright test (first run: npx playwright install chromium)
+npm run build        # next build
+npm run validate     # lint && typecheck && test && build
 ```
 
-Open:
+`npm run validate` is the required gate before merging — it does not include `test:e2e` (Playwright needs a browser binary installed separately; see below).
 
-```text
-http://localhost:8000
+`format` / `format:check` run Prettier (`prettier-plugin-tailwindcss` keeps class lists sorted).
+
+### Playwright browser install
+
+E2E tests need a Chromium binary the first time:
+
+```bash
+npx playwright install chromium
 ```
+
+The Playwright web server rebuilds and boots a fresh `next start` for each e2e run, so the very first request or two can be slow to respond immediately after boot. `playwright.config.ts` runs 2 workers with 1 local retry to absorb that instead of masking a real bug.
 
 ---
 
-## Live Data Setup
+## Legacy prototype
 
-By default, the dashboard uses `src/data.json`.
+The original static dashboard prototype (vanilla HTML/CSS/JS, Google Sheets + Supabase adapters, the KPI analyzer/decision/action rules engine) is preserved as-is under `legacy/static-dashboard/`:
 
-To connect Google Sheets:
-
-1. Copy `src/config.example.js` to `src/config.js`.
-2. Paste your Google Apps Script Web App URL.
-3. Keep real URLs out of public commits when possible.
-
-Example:
-
-```js
-window.BOSSA_CONFIG = {
-  GOOGLE_APPS_SCRIPT_WEB_APP_URL: "https://script.google.com/macros/s/YOUR_ID/exec"
-};
+```bash
+npm --prefix legacy/static-dashboard run dev
 ```
+
+Opens on `http://localhost:8000`. Nothing in it was deleted — Phase 1's mock dashboard data (`lib/dashboard/mock-data/bossa.ts`) reuses its demo numbers and AI-rules-engine copy where they still make sense.
 
 ---
 
-## Recommended Folder Map
+## Tenant configuration guide
 
-```text
-bossa-ai-os/
-├── docs/                 # system docs and schemas
-├── operations/           # weekly review and owner playbooks
-├── src/                  # static dashboard prototype
-│   ├── ai/               # analyzer, decision, action logic
-│   ├── adapters/         # data adapters
-│   ├── assets/           # dashboard screenshots and visuals
-│   └── data.json         # fallback demo data
-├── templates/            # Sheets columns and brief templates
-├── ROADMAP.md
-└── README.md
+Tenants are defined in [`lib/tenancy/tenants.ts`](lib/tenancy/tenants.ts) against the `TenantConfig` type in [`lib/tenancy/types.ts`](lib/tenancy/types.ts):
+
+```ts
+interface TenantConfig {
+  id: string;
+  slug: string;             // route segment: /[slug]/dashboard
+  name: string;
+  businessType: BusinessType;
+  branding: TenantBranding; // logo initials, primary/accent HSL, theme mode, radius
+  locale: string;
+  timezone: string;
+  currency: string;         // ISO 4217
+  serviceStatus: ServiceStatus;
+  aiManagerName: string;
+  productKpi: { label: string; unit?: string };
+  dashboardWidgets: DashboardWidgetInstanceConfig[];
+}
 ```
+
+To onboard a new tenant: add a `TenantConfig` to `lib/tenancy/tenants.ts`, add its mock dataset under `lib/dashboard/mock-data/`, and register it in `lib/dashboard/mock-provider.ts`. No shared component needs to change — branding flows through `lib/tenancy/theme.ts`, which turns `branding.primaryColor` / `accentColor` / `borderRadius` into CSS custom-property overrides applied at the `[organizationSlug]` layout boundary. `branding.themeMode` sets `data-theme` (`dark` for BOSSA, `light` for Papai in this seed data) — same components, opposite themes.
 
 ---
 
-## Product Roadmap
+## Dashboard widget guide
 
-See [`ROADMAP.md`](./ROADMAP.md).
+`lib/widgets/registry.ts` maps every `WidgetKey` (see `WIDGET_KEYS` in `lib/tenancy/types.ts`) to a `WidgetDefinition`:
 
-Next priorities:
+```ts
+interface WidgetDefinition<TData> {
+  key: WidgetKey;
+  title: string;                 // shown in the WidgetFrame card header (blank = self-titling widget)
+  defaultSize: WidgetSize;        // sm | md | lg | full
+  component: ComponentType<{ data: TData; tenant: TenantConfig }>;
+  selectData: (dashboardData: DashboardData, tenant: TenantConfig) => TData;
+}
+```
 
-1. Stabilize static dashboard and data schema.
-2. Deploy as a static site.
-3. Expand KPI and scoring rules.
-4. Add weekly brief export.
-5. Upgrade to a Next.js dashboard when the workflow is proven.
+`components/dashboard/dashboard-grid.tsx` reads a tenant's `dashboardWidgets` config, validates it at runtime with the Zod schema in `lib/widgets/schema.ts`, sorts by `order`, and renders each widget inside a `WidgetFrame` that uniformly handles the loading/empty/error/permission-restricted states (`components/ui/{empty,error,permission}-state.tsx`). Widgets never import tenant data directly — everything comes through `DashboardGrid`'s `selectData` call.
+
+To add a widget: add its key to `WIDGET_KEYS`, add a field to `DashboardData` (`lib/dashboard/types.ts`) and both mock datasets, build the component under `components/dashboard/widgets/`, and register it in `lib/widgets/registry.ts`. To change what a tenant shows, edit its `dashboardWidgets` array — no JSX changes required.
+
+---
+
+## Migration status
+
+| Phase | Status |
+| --- | --- |
+| Phase 0 — Preserve prototype | Done (`legacy/static-dashboard/`) |
+| **Phase 1 — Next.js + design-system foundation** | **Done** — this codebase |
+| Phase 2 — Supabase tenancy and authentication | Not started |
+| Phase 3 — Live operational modules | Not started |
+| Phase 4 — AI Executive MVP | Not started |
+| Phase 5 — Integrations | Not started |
+| Phase 6 — SaaS commercialization | Not started |
+
+See [`docs/PHASE_1_IMPLEMENTATION_REPORT.md`](docs/PHASE_1_IMPLEMENTATION_REPORT.md) for what shipped in this phase, and the full backlog in [`docs/MULTI_TENANT_HOSPITALITY_OS_ARCHITECTURE.md`](docs/MULTI_TENANT_HOSPITALITY_OS_ARCHITECTURE.md).
+
+## Next phase: Supabase tenancy and authentication
+
+Phase 2 adds `organizations`, `locations`, `profiles`, `organization_memberships`, `roles`, `role_permissions`, and `organization_branding`/`organization_settings` tables with Row-Level Security, Supabase Auth, and server-side tenant-context resolution — replacing `getTenantBySlug()`'s static lookup and `MockDashboardDataProvider` with real, tenant-isolated queries. The widget and dashboard layer built in Phase 1 needs no changes to support this: `DashboardDataProvider` is already the seam a Supabase-backed implementation plugs into.
 
 ---
 
 ## BOSSA Operating Principle
 
 > Decide fast. Route clean. Review outcomes. Memory compounds.
-
-The goal is not to replace the owner. The goal is to make the owner’s weekly decisions clearer, faster, and easier to track.
