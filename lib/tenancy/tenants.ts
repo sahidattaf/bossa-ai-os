@@ -1,5 +1,13 @@
 import type { DashboardWidgetInstanceConfig, TenantConfig, WidgetKey } from "./types";
 
+/** Minimal, non-sensitive fields safe to ship to the client for org-switching UI. */
+export interface TenantSummary {
+  id: string;
+  slug: string;
+  name: string;
+  logoInitials: string;
+}
+
 function widgetOrder(
   overrides: Partial<Record<WidgetKey, Partial<DashboardWidgetInstanceConfig>>> = {},
 ): DashboardWidgetInstanceConfig[] {
@@ -86,6 +94,19 @@ export function listTenants(): readonly TenantConfig[] {
 
 export function listTenantSlugs(): string[] {
   return TENANTS.map((tenant) => tenant.slug);
+}
+
+export function toTenantSummary(tenant: TenantConfig): TenantSummary {
+  return {
+    id: tenant.id,
+    slug: tenant.slug,
+    name: tenant.name,
+    logoInitials: tenant.branding.logoInitials,
+  };
+}
+
+export function listTenantSummaries(): TenantSummary[] {
+  return TENANTS.map(toTenantSummary);
 }
 
 export function getTenantBySlug(slug: string): TenantConfig | undefined {
