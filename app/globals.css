@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Semantic design tokens (HSL triplets, no unit, consumed via hsl(var(--x) / <alpha>)).
+ * Values here are the neutral platform default. Tenant primary/accent colors are
+ * layered on top per-organization by lib/tenancy/theme.ts — no tenant name or
+ * brand color belongs in this file.
+ */
+:root,
+[data-theme="dark"] {
+  --background: 222 47% 8%;
+  --foreground: 210 40% 92%;
+  --surface: 222 39% 12%;
+  --surface-elevated: 217 33% 17%;
+  --border: 217 25% 24%;
+  --muted: 217 25% 20%;
+  --muted-foreground: 215 20% 65%;
+  --primary: 24 95% 53%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 199 89% 58%;
+  --accent-foreground: 222 47% 8%;
+  --success: 142 71% 40%;
+  --warning: 38 92% 50%;
+  --danger: 0 72% 51%;
+  --info: 199 89% 58%;
+  --chart-1: 24 95% 53%;
+  --chart-2: 199 89% 58%;
+  --chart-3: 142 71% 40%;
+  --chart-4: 38 92% 50%;
+  --chart-5: 271 81% 66%;
+  --radius: 0.75rem;
+}
+
+[data-theme="light"] {
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --surface: 0 0% 100%;
+  --surface-elevated: 210 40% 96%;
+  --border: 214 32% 88%;
+  --muted: 210 40% 94%;
+  --muted-foreground: 215 16% 42%;
+  --primary: 24 95% 46%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 199 89% 42%;
+  --accent-foreground: 0 0% 100%;
+  --success: 142 71% 32%;
+  --warning: 38 92% 42%;
+  --danger: 0 72% 45%;
+  --info: 199 89% 42%;
+  --chart-1: 24 95% 46%;
+  --chart-2: 199 89% 42%;
+  --chart-3: 142 71% 32%;
+  --chart-4: 38 92% 42%;
+  --chart-5: 271 81% 56%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}

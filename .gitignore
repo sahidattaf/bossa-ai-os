@@ -8,4 +8,17 @@ node_modules/
 !.env.example
 .DS_Store
 Thumbs.db
-src/config.js
+legacy/static-dashboard/config.js
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Testing
+/coverage
+/playwright-report
+/test-results
+/blob-report
+/playwright/.cache
