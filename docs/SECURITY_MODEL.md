@@ -1,6 +1,6 @@
-# Security Model — Phase 2
+# Security Model
 
-How Hospitality OS enforces tenant isolation, authentication, and role-based access. Written for anyone reviewing or extending the Supabase schema in `supabase/migrations/`.
+How Hospitality OS enforces tenant isolation, authentication, and role-based access. Written for anyone reviewing or extending the Supabase schema in `supabase/migrations/`. Covers Phase 2 (tenancy/auth/RBAC) and Phase 3 (operational data) — the RLS pattern is identical across both; Phase 3 additions are called out in their own section below.
 
 ---
 
@@ -97,10 +97,32 @@ Two independent mechanisms, each doing one job:
 
 ## Service-role key
 
-`lib/supabase/service-role.ts` is the only place `SUPABASE_SECRET_KEY` is ever read, guarded by `import "server-only"` (an accidental client-side import is a build error, not a runtime leak). **No request path in Phase 2 uses it** — it's reserved for explicit, audited, server-only administration scripts (e.g. future organization provisioning in a later phase). `.env.example` documents it as server-only and never-committed.
+`lib/supabase/service-role.ts` is the only place `SUPABASE_SECRET_KEY` is ever read, guarded by `import "server-only"` (an accidental client-side import is a build error, not a runtime leak). **No user request path uses it**, in Phase 2 or Phase 3 — its only caller is `scripts/generate-kpi-snapshots.ts` (see `docs/KPI_SNAPSHOT_OPERATIONS.md`), an explicit, offline, server-only administration script, never something a browser request reaches. `.env.example` documents it as server-only and never-committed.
 
-## What Phase 2 does *not* cover
+---
+
+## Phase 3 additions
+
+Five new tenant-owned tables (`leads`, `reservations`, `orders`, `order_items`, `daily_kpi_snapshots`) plus a global `status_transitions` rulebook — full schema in `docs/OPERATIONAL_DATA_MODEL.md`. The RLS pattern is identical to Phase 2's (`is_org_member()`/`has_permission()`, enabled + forced, least-privilege `GRANT`s), with three additions worth calling out specifically:
+
+### Tenant scoping via composite foreign keys, not just RLS
+
+`reservations.location_id`, `orders.location_id`/`lead_id`/`reservation_id`, and `order_items.order_id` each use a composite FK against `(organization_id, id)` on the referenced table, so "does this row belong to the same organization as the row it references" is a schema-level guarantee (`23503` on violation) rather than a trigger or app-level check that something could forget to add. Detailed in `docs/OPERATIONAL_DATA_MODEL.md`.
+
+### Money integrity as a privilege-layer guarantee
+
+`orders.subtotal`/`orders.total` have **no `authenticated` GRANT at all** (`20260722000005_operational_table_grants.sql`) — not even column-restricted UPDATE. Only `SECURITY DEFINER` trigger functions ever write them. This matters beyond defense-in-depth: without the grant restriction, a bare `UPDATE orders SET subtotal = ...` wouldn't touch the `discount_total`/`tax_total`/`delivery_fee` recalculation trigger (which only fires `BEFORE UPDATE OF` those three columns) and could silently desync the stored total from reality.
+
+### `get_dashboard_snapshot()` is SECURITY INVOKER, deliberately
+
+Unlike every other function in this schema (all `SECURITY DEFINER`, needed to read across RLS-restricted membership/role tables safely), the dashboard aggregate RPC runs as the **calling user** — every query inside it is still filtered by each table's own RLS. The function adds its own narrower gate on top (`dashboard.read` to call it at all; `finance.read` to see revenue-shaped fields), but never bypasses tenant isolation the way a `SECURITY DEFINER` implementation would have to be very carefully written not to.
+
+### Status machines: two triggers, not one
+
+`enforce_status_transition()` (BEFORE, validates) and `audit_status_transition()` (AFTER, records) are separate, generic, reusable across every status column in the schema — see `docs/ORDER_RESERVATION_LEAD_WORKFLOWS.md` for the full rulebook and reasoning.
+
+## What's still not covered
 
 - Rate limiting / brute-force protection on `/login` (Supabase Auth's own defaults apply; nothing additional was added).
-- Operational tables (orders, reservations, inventory, etc.) — Phase 3. `SupabaseDashboardDataProvider` returns honest zero/empty values for all of them rather than fabricating numbers.
 - Self-serve organization creation — provisioning a new organization is still a manual, service-role administrative action.
+- Phase 3B domains (inventory, suppliers, menu costing, reviews, staff/tasks, finance) — no tables, policies, or screens exist for any of them yet.
