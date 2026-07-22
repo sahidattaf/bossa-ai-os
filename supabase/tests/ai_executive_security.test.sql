@@ -478,7 +478,7 @@ select pg_temp.authenticate_as('00000000-0000-0000-0002-000000000001');
 select lives_ok(
   format(
     $$ select public.dismiss_ai_recommendation('%s'::uuid) $$,
-    (select id from public.ai_recommendations where organization_id = '00000000-0000-0000-0000-000000000001' and recommended_action_type = 'navigate' limit 1)
+    (select id from ai_test_ids where key = 'bossa_navigate_recommendation')
   ),
   'BOSSA owner (ai.recommendations.manage) can dismiss BOSSA''s no-approval-required recommendation'
 );
