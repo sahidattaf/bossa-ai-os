@@ -1,6 +1,12 @@
-# BOSSA AI OS — Supabase Setup
+# Legacy Static Dashboard — Supabase Setup
 
-Supabase is the live data layer for BOSSA AI OS.
+> This document covers the **legacy static dashboard's** informal, single-tenant
+> Supabase project (`legacy/static-dashboard/`). It predates the multi-tenant
+> Hospitality OS schema introduced in Phase 2 — see `docs/SUPABASE_OPERATIONS.md`
+> for the current `supabase/` CLI-managed project (organizations, memberships,
+> roles, RLS). The two are unrelated projects; do not mix their SQL.
+
+Supabase is the live data layer for the legacy static dashboard.
 
 ```text
 Notion = planning brain
@@ -41,20 +47,14 @@ agent_runs
 
 The production Supabase project already has this schema applied.
 
-For a fresh project, run:
+For a fresh project, paste `legacy/static-dashboard/supabase/schema.sql` into the Supabase SQL Editor.
 
-```bash
-supabase db push
-```
-
-Or paste `supabase/schema.sql` into the Supabase SQL Editor.
-
-## Browser config for current static dashboard
+## Browser config for the static dashboard
 
 Copy:
 
 ```bash
-cp src/config.example.js src/config.js
+cp legacy/static-dashboard/config.example.js legacy/static-dashboard/config.js
 ```
 
 Then fill:

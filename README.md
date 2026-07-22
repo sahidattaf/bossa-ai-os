@@ -22,15 +22,15 @@ Don't merge these responsibilities across repos.
 
 ---
 
-## Architecture summary (Phase 1)
+## Architecture summary
 
 - **Next.js 15 App Router + React 19 + TypeScript strict**, at the repository root.
 - **Tailwind CSS** with semantic design tokens (`app/globals.css`, `tailwind.config.ts`) — no tenant color is hard-coded into a shared component.
 - **shadcn/ui-compatible primitives** (`components/ui/`) built on Radix UI + `class-variance-authority`.
-- **Tenant configuration** (`lib/tenancy/`) resolves `/[organizationSlug]` to a typed `TenantConfig` and generates that tenant's CSS variable overrides.
+- **Tenant configuration** (`lib/tenancy/`) resolves `/[organizationSlug]` to a typed `TenantConfig`, either from a static array (`mock` mode) or, since Phase 2, from real Supabase rows behind an authenticated, membership-verified query (`supabase` mode) — see below.
 - **Widget system** (`lib/widgets/`) — a typed, Zod-validated registry mapping each dashboard widget key to a component and a data selector.
-- **Provider-neutral data layer** (`lib/dashboard/`) — `DashboardDataProvider` interface, currently backed by `MockDashboardDataProvider`. No dashboard component imports mock data directly.
-- No Supabase dependency yet — that's Phase 2.
+- **Provider-neutral data layer** (`lib/dashboard/`) — `DashboardDataProvider` interface, backed by `MockDashboardDataProvider` (default) or `SupabaseDashboardDataProvider` (Phase 2). No dashboard component imports mock data directly.
+- **Authentication and Row-Level Security** (`supabase/`, `lib/supabase/`) — Phase 2. See "Authentication and tenancy" below.
 
 ```text
 app/(workspace)/[organizationSlug]/
@@ -57,7 +57,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000` — it links to `/bossa/dashboard` and `/papai/dashboard`.
+Open `http://localhost:3000` — it links to `/bossa/dashboard` and `/papai/dashboard`. By default (no `.env.local`) the app runs in `mock` mode: no auth, static tenant data. See "Authentication and tenancy" below to run against real Supabase.
 
 ## Validation
 
@@ -70,7 +70,7 @@ npm run build        # next build
 npm run validate     # lint && typecheck && test && build
 ```
 
-`npm run validate` is the required gate before merging — it does not include `test:e2e` (Playwright needs a browser binary installed separately; see below).
+`npm run validate` is the required gate before merging — it does not include `test:e2e` or the Supabase database tests (see `docs/SUPABASE_OPERATIONS.md`; both need infra beyond a plain `npm ci`, and both run in CI).
 
 `format` / `format:check` run Prettier (`prettier-plugin-tailwindcss` keeps class lists sorted).
 
@@ -95,6 +95,34 @@ npm --prefix legacy/static-dashboard run dev
 ```
 
 Opens on `http://localhost:8000`. Nothing in it was deleted — Phase 1's mock dashboard data (`lib/dashboard/mock-data/bossa.ts`) reuses its demo numbers and AI-rules-engine copy where they still make sense.
+
+---
+
+## Authentication and tenancy
+
+One env var controls everything: `DASHBOARD_DATA_PROVIDER` (server-only, `mock` default | `supabase`).
+
+- **`mock`** (no setup required): Phase 1 behavior exactly — static tenant list, no sign-in, `MockDashboardDataProvider`. This is what CI's `validate` and `e2e` jobs run against.
+- **`supabase`**: real Supabase Auth, membership-verified tenant resolution, `SupabaseDashboardDataProvider`, PostgreSQL Row-Level Security. Requires a running Supabase project — for local dev:
+
+```bash
+npm run supabase:start   # boots the local stack (needs Docker)
+npm run supabase:reset   # applies every migration + seed.sql
+cp .env.example .env.local
+# fill in NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY from `supabase status`,
+# and set DASHBOARD_DATA_PROVIDER=supabase
+npm run dev
+```
+
+Sign in at `/login` as a seeded dev user (`owner@bossa.test` / `DevPassword123!`, see `docs/SUPABASE_OPERATIONS.md` for the full list — local/dev fixtures only, never real credentials). Full operational detail:
+
+- [`docs/SUPABASE_OPERATIONS.md`](docs/SUPABASE_OPERATIONS.md) — local setup, migrations, seeded users, rollback/recovery, linking a real project
+- [`docs/SECURITY_MODEL.md`](docs/SECURITY_MODEL.md) — threat model, the full RLS policy inventory, and why each deliberate exception exists
+- [`docs/PHASE_2_IMPLEMENTATION_REPORT.md`](docs/PHASE_2_IMPLEMENTATION_REPORT.md) — what shipped, validation results
+
+### Roles and permissions, briefly
+
+8 roles (`organization_owner`, `general_manager`, `finance_manager`, `operations_manager`, `marketing_manager`, `staff`, `viewer`, plus cross-org `platform_admin`) × 18 dot-namespaced permissions (`dashboard.read`, `finance.write`, `organization.manage`, …), seeded in `supabase/migrations/20260721230002_identity_and_catalog.sql`. `lib/widgets/permissions.ts::hasPermission()` — unchanged since Phase 1 — is what actually enforces this at render time; the `supabase` mode workspace layout just populates its input from a real per-request `get_my_permissions()` call instead of a wildcard default.
 
 ---
 
@@ -148,18 +176,18 @@ To add a widget: add its key to `WIDGET_KEYS`, add a field to `DashboardData` (`
 | Phase | Status |
 | --- | --- |
 | Phase 0 — Preserve prototype | Done (`legacy/static-dashboard/`) |
-| **Phase 1 — Next.js + design-system foundation** | **Done** — this codebase |
-| Phase 2 — Supabase tenancy and authentication | Not started |
+| Phase 1 — Next.js + design-system foundation | Done — [report](docs/PHASE_1_IMPLEMENTATION_REPORT.md) |
+| **Phase 2 — Supabase tenancy and authentication** | **Done** — [report](docs/PHASE_2_IMPLEMENTATION_REPORT.md) |
 | Phase 3 — Live operational modules | Not started |
 | Phase 4 — AI Executive MVP | Not started |
 | Phase 5 — Integrations | Not started |
 | Phase 6 — SaaS commercialization | Not started |
 
-See [`docs/PHASE_1_IMPLEMENTATION_REPORT.md`](docs/PHASE_1_IMPLEMENTATION_REPORT.md) for what shipped in this phase, and the full backlog in [`docs/MULTI_TENANT_HOSPITALITY_OS_ARCHITECTURE.md`](docs/MULTI_TENANT_HOSPITALITY_OS_ARCHITECTURE.md).
+See the full backlog in [`docs/MULTI_TENANT_HOSPITALITY_OS_ARCHITECTURE.md`](docs/MULTI_TENANT_HOSPITALITY_OS_ARCHITECTURE.md).
 
-## Next phase: Supabase tenancy and authentication
+## Next phase: live operational modules
 
-Phase 2 adds `organizations`, `locations`, `profiles`, `organization_memberships`, `roles`, `role_permissions`, and `organization_branding`/`organization_settings` tables with Row-Level Security, Supabase Auth, and server-side tenant-context resolution — replacing `getTenantBySlug()`'s static lookup and `MockDashboardDataProvider` with real, tenant-isolated queries. The widget and dashboard layer built in Phase 1 needs no changes to support this: `DashboardDataProvider` is already the seam a Supabase-backed implementation plugs into.
+Phase 3 adds the operational tables (orders, reservations, CRM/leads, inventory, menu & costing, staff/tasks, finance snapshots), each following the same `organization_id` + RLS pattern Phase 2 established. `SupabaseDashboardDataProvider` (`lib/dashboard/supabase-provider.ts`) currently returns honest zero/empty values for every operational widget — Phase 3 replaces those with real queries. `has_permission()` already recognizes the relevant permission keys (`orders.read`, `orders.write`, etc.), and `record_audit_event()` is ready for operational mutations to log against. No dashboard, widget, or shell component should need to change.
 
 ---
 

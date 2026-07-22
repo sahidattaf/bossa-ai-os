@@ -35,6 +35,59 @@ jobs:
       - name: Validate application
         run: npm run validate
 
+  database:
+    name: Supabase migrations, seed, and RLS security tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase stack
+        run: supabase start --exclude studio,imgproxy,logflare,vector
+
+      - name: Apply migrations and seed data from a clean database
+        run: supabase db reset
+
+      - name: Run pgTAP cross-tenant security tests
+        run: supabase test db
+
+      - name: Regenerate database types from the real schema and verify they still typecheck
+        run: |
+          npm run supabase:types
+          npm run typecheck
+          if ! git diff --quiet -- lib/supabase/database.types.ts; then
+            echo "::warning::Committed lib/supabase/database.types.ts differs from freshly generated output (see diff below). The app still typechecks against the real schema, so this is informational, not a failure — regenerate and commit if the diff looks meaningful."
+            git diff -- lib/supabase/database.types.ts
+          fi
+
+      - name: Run integration tests against the local instance
+        run: |
+          supabase status -o env > /tmp/supabase-status.env
+          set -a
+          source /tmp/supabase-status.env
+          set +a
+          SUPABASE_URL="$API_URL" SUPABASE_ANON_KEY="$ANON_KEY" npm run test:integration
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop
+
   e2e:
     name: Playwright end-to-end tests
     runs-on: ubuntu-latest
