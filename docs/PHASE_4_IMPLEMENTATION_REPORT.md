@@ -83,9 +83,33 @@ npm run test:e2e      → 44 specs, 41 passed / 3 mobile-only-skip, including 9 
 npm run build          → succeeds
 ```
 
-`npm run test:integration` and `supabase test db` (the new 40-assertion pgTAP file) could not be run locally — both need a live Postgres instance via `supabase start`, unavailable without Docker in this sandbox. `tests/integration/ai-executive.test.ts` was confirmed to collect and fail identically to the pre-existing Phase 3 integration suites (`fetch failed` at sign-in against no live Supabase instance) — a structural confirmation the file itself has no import-time or type errors, not a substitute for actually running it. Both suites' correctness rests on careful manual tracing plus real validation once pushed to CI, following the exact same iterative pattern Phase 3 used: push, watch CI, fix real discovered bugs, repeat.
+`npm run test:integration` and `supabase test db` (the new 40-assertion pgTAP file) could not be run locally — both need a live Postgres instance via `supabase start`, unavailable without Docker in this sandbox. `tests/integration/ai-executive.test.ts` was confirmed to collect and fail identically to the pre-existing Phase 3 integration suites (`fetch failed` at sign-in against no live Supabase instance) before pushing — a structural confirmation the file itself had no import-time or type errors, not a substitute for actually running it.
 
 Manually smoke-tested via `npm run dev` (mock mode): `/bossa/ai-executive`, `/bossa/ai-executive/approvals`, and `/papai/ai-executive` all render correctly with the deterministic-mode banner, the "Demo mode — read-only" notice, and correct tenant-isolated fixtures (BOSSA's "Maria F." never appears on Papai's page or vice versa); `/bossa/ai-executive/recommendations/mock-rec-bossa-1` correctly 404s. No console or server errors.
+
+**CI — real run, all green:** [PR #19](https://github.com/sahidattaf/bossa-ai-os/pull/19), after 6 fix-forward iterations against real infrastructure (see "Bugs found by CI" below):
+
+```text
+validate: lint, typecheck, unit test (19 files/75 tests), build         → PASS
+database job:
+  supabase start (Docker, real local stack)                              → boots clean
+  supabase db reset (all migrations + seed.sql)                          → applies clean from empty
+  supabase test db (pgTAP: rls_cross_tenant + operational_security + ai_executive_security) → PASS — 96/96 (29 + 27 + 40)
+  regenerate lib/supabase/database.types.ts + re-typecheck                → clean against the real schema
+  git diff --exit-code -- lib/supabase/database.types.ts                 → zero drift (hard failure, passing)
+  npm run test:integration (4 files, including ai-executive.test.ts)      → PASS
+  supabase stop                                                          → clean shutdown
+e2e job: Playwright                                                      → PASS — 44 specs (41 run, 3 platform-skipped)
+```
+
+## Bugs found by CI (each fixed as its own commit, in order)
+
+1. **`audit_ai_rule_config_change()` called `record_audit_event()` unconditionally.** Unlike every other audit path in this schema (`apply_ai_evaluation()`, `calculate_daily_kpi_snapshot()`), the one trigger added for `ai_rule_configs` had no `auth.uid() is not null` guard — `record_audit_event()`'s own "caller must belong to this organization" check rejected the null actor in seed.sql's raw psql context, breaking seeding before a single AI migration test could run. Fixed by adding the same guard every other trusted-service-context write in this project already uses.
+2. **An unpaired `source_entity_type` in a seeded evidence row.** `ai_recommendation_evidence`'s `check((source_entity_type is null) = (source_entity_id is null))` rejected the `revenue_below_target` fixture's evidence, which set `source_entity_type` without a matching `source_entity_id` (no literal UUID was available for the seed-generated snapshot row). Fixed by dropping the unpaired field from the fixture.
+3. **Three pgTAP test bugs**, none in the schema itself: (a) a dedupe_key `LIKE` pattern in the finance-redaction assertions didn't match what the hand-authored seed fixture actually inserts; (b) two cross-tenant assertions resolved the target row via a live subquery evaluated *while authenticated as the tenant that shouldn't see it* — RLS filtered it to zero rows, so the uuid cast failed with the wrong kind of error rather than the `PERMISSION_DENIED` being asserted (fixed by capturing both ids into a temp table before the first `authenticate_as()` call, since — unlike Phase 3's fixed literal seed UUIDs — `ai_approvals`/`ai_recommendations` rows are `gen_random_uuid()`'d, not literal); (c) a reopening-test call reused the seed's own `rule_version` while only re-sending one of BOSSA's two recommendations, and `apply_ai_evaluation()`'s rule-version-scoped expiry step treated the *other* seeded recommendation as stale and expired it — fixed by giving that test its own `rule_version`, the same isolation the idempotency tests already used.
+4. **A second, unrelated `navigate`-type recommendation created by an idempotency test** (test 14) made a later assertion's `... and recommended_action_type = 'navigate' limit 1` query non-deterministic once that probe recommendation was expired by a subsequent test — it could resolve to either row depending on physical row order. Fixed by reusing the same captured-id temp table instead of a fresh, ambiguous query.
+5. **Hand-authored `database.types.ts` drift** once pgTAP and seeding both passed: `Relationships` array ordering on two tables, two `isOneToOne` flags, a 63-char-truncated FK constraint name, `payload_hash` needing to be nullable/optional (it's a `GENERATED` column, same precedent as Phase 3's `order_items.line_total`), and Args formatting. Resolved by committing the real regenerated artifact directly, never hand-patching around it — the same resolution Phase 3 used for its own whole-file drift.
+6. **`apply_ai_evaluation`'s `p_location_id` generated as a required, non-nullable `string`** (no SQL default exists for it, so the generator doesn't account for its actual nullability) — a narrower version of the exact generator quirk Phase 3 hit with `calculate_daily_kpi_snapshot`'s optional `p_location_id`. Fixed with a documented type-only cast at both call sites, since neither `null` nor `undefined` satisfies the generated type.
 
 ## Risks and decisions
 
