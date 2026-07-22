@@ -60,14 +60,29 @@ Legacy static-dashboard's single-tenant Supabase SQL relocated to `legacy/static
 
 Run locally in this sandbox (no Docker, so the database-specific steps below ran only in CI):
 
-```
+```text
 npm run lint        → clean
 npm run typecheck   → clean (strict mode)
 npm run test         → 7 files, 35 tests passed (Phase 1's suite, byte-for-byte unchanged)
 npm run build         → succeeds, 20 routes (19 from Phase 1 + /login)
+npm run test:e2e      → 14 specs, 11 passed, 3 correctly skipped (mock mode, unaffected)
 ```
 
-CI `database` job (`supabase start` → `supabase db reset` → `supabase test db` → regenerate types + re-typecheck → `test:integration` → `supabase stop`): **[filled in after the real CI run — see the PR checks, not a number asserted here without having seen it]**
+CI `database` job — the real result, from
+[run 29883073284](https://github.com/sahidattaf/bossa-ai-os/actions/runs/29883073284), after 6 fix-forward iterations (see commits after the initial 10; each one is a real bug the CI run itself surfaced, not a local assumption):
+
+```text
+supabase start (Docker, real local stack)             → boots clean
+supabase db reset (all 8 migrations + seed.sql)         → applies clean from empty
+supabase test db (pgTAP, supabase/tests/rls_cross_tenant.test.sql) → PASS — 29/29 assertions
+regenerate lib/supabase/database.types.ts + re-typecheck → clean against the real schema
+                                                            (textual diff vs. committed file:
+                                                            informational only, doc comment)
+npm run test:integration (tests/integration/tenancy.test.ts) → 9/9 passed
+supabase stop                                            → clean shutdown
+```
+
+All three CI jobs (`validate`, `database`, `e2e`) green on the final commit. **Every fix-forward commit in this branch's history exists because the CI `database` job caught a real bug this sandbox's lack of Docker made impossible to catch locally** — an invalid `config.toml` key, missing table-level `GRANT`s (RLS alone isn't sufficient — a real and important lesson, documented in `docs/SECURITY_MODEL.md`), a Postgres syntax restriction on nested data-modifying `WITH` clauses, a pgTAP plan-count mismatch, hand-authored types that were more optimistic than what `text` + `CHECK` columns actually generate, and an auth config flag that turned out to gate sign-in, not just public registration. None of these were caught by local lint/typecheck/build — that's exactly why this job exists.
 
 ## Risks and decisions
 
