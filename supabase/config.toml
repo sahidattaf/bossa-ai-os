@@ -23,10 +23,15 @@ enabled = true
 site_url = "http://localhost:3000"
 additional_redirect_urls = ["http://localhost:3000/**"]
 jwt_expiry = 3600
-enable_signup = false
+# Note: this does not grant any organization access by itself — a signed-up
+# user with zero memberships still gets a permission-state page for every
+# organization, exactly like the seeded outsider@example.test dev user.
+# Disabling it here also disabled sign-IN for the seeded dev users, not just
+# public self-registration, so it's left enabled at the Auth level.
+enable_signup = true
 
 [auth.email]
-enable_signup = false
+enable_signup = true
 enable_confirmations = false
 
 [storage]
