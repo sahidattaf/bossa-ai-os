@@ -42,3 +42,7 @@ grant update (item_name, item_sku, quantity, unit_price, metadata) on public.ord
 -- daily_kpi_snapshots: select-only for authenticated (see RLS policy);
 -- written exclusively by the SECURITY DEFINER KPI snapshot function.
 grant select on public.daily_kpi_snapshots to authenticated;
+
+-- status_transitions: select-only, global read-only rulebook (see RLS
+-- policy in 20260722000002) — migration-managed, no authenticated write.
+grant select on public.status_transitions to authenticated;
