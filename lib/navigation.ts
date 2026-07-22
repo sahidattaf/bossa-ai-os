@@ -30,14 +30,14 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { label: "Dashboard", segment: "dashboard", icon: LayoutDashboard, availableInPhase1: true },
   { label: "AI Executive", segment: "ai-executive", icon: Sparkles, availableInPhase1: false },
-  { label: "Orders", segment: "orders", icon: ShoppingCart, availableInPhase1: false },
+  { label: "Orders", segment: "orders", icon: ShoppingCart, availableInPhase1: true },
   {
     label: "Reservations",
     segment: "reservations",
     icon: CalendarCheck,
-    availableInPhase1: false,
+    availableInPhase1: true,
   },
-  { label: "CRM", segment: "crm", icon: Users, availableInPhase1: false },
+  { label: "CRM", segment: "crm", icon: Users, availableInPhase1: true },
   { label: "Kitchen", segment: "kitchen", icon: ChefHat, availableInPhase1: false },
   {
     label: "Menu & Costing",
