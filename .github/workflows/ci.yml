@@ -110,12 +110,36 @@ jobs:
         run: git diff --exit-code -- lib/supabase/database.types.ts
 
       - name: Run integration tests against the local instance
+        id: integration
+        shell: bash
         run: |
+          set +e
           supabase status -o env > /tmp/supabase-status.env
           set -a
           source /tmp/supabase-status.env
           set +a
-          SUPABASE_URL="$API_URL" SUPABASE_ANON_KEY="$ANON_KEY" npm run test:integration
+          SUPABASE_URL="$API_URL" SUPABASE_ANON_KEY="$ANON_KEY" npm run test:integration > /tmp/integration.log 2>&1
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo "::group::Integration test failure summary"
+            grep -nE -B 4 -A 25 "FAIL|✗|Error:|AssertionError|expected|Expected|received|Received" /tmp/integration.log || tail -n 200 /tmp/integration.log
+            echo "::endgroup::"
+          else
+            tail -n 100 /tmp/integration.log
+          fi
+
+          exit "$status"
+
+      - name: Upload complete integration test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-log
+          path: /tmp/integration.log
+          retention-days: 14
+          if-no-files-found: warn
 
       - name: Stop local Supabase stack
         if: always()
