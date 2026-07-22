@@ -43,7 +43,9 @@ async function applyTestIntent(
 ) {
   const { error } = await supabase.rpc("apply_ai_evaluation", {
     p_organization_id: organizationId,
-    p_location_id: null,
+    // p_location_id has no SQL default, so the generated type is a required
+    // (non-nullable) string even though a real null is valid and sent here.
+    p_location_id: null as unknown as string,
     p_as_of: new Date().toISOString(),
     p_rule_version: `integration-test.${Date.now()}`,
     p_intents: {

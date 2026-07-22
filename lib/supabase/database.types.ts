@@ -85,18 +85,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ai_action_attempts_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "ai_action_attempts_organization_id_approval_id_fkey"
             columns: ["organization_id", "approval_id"]
             isOneToOne: false
             referencedRelation: "ai_approvals"
             referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "ai_action_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "ai_action_attempts_organization_id_recommendation_id_fkey"
@@ -161,7 +161,7 @@ export type Database = {
           {
             foreignKeyName: "ai_approvals_organization_id_recommendation_id_fkey"
             columns: ["organization_id", "recommendation_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "ai_recommendations"
             referencedColumns: ["organization_id", "id"]
           },
@@ -218,13 +218,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ai_outcomes_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "ai_outcomes_organization_id_action_attempt_id_fkey"
             columns: ["organization_id", "action_attempt_id"]
             isOneToOne: false
@@ -232,9 +225,16 @@ export type Database = {
             referencedColumns: ["organization_id", "id"]
           },
           {
+            foreignKeyName: "ai_outcomes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ai_outcomes_organization_id_recommendation_id_fkey"
             columns: ["organization_id", "recommendation_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "ai_recommendations"
             referencedColumns: ["organization_id", "id"]
           },
@@ -289,7 +289,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "ai_recommendation_evidence_organization_id_recommendation_id_fkey"
+            foreignKeyName: "ai_recommendation_evidence_organization_id_recommendation__fkey"
             columns: ["organization_id", "recommendation_id"]
             isOneToOne: false
             referencedRelation: "ai_recommendations"
@@ -308,7 +308,7 @@ export type Database = {
           id: string
           location_id: string | null
           organization_id: string
-          payload_hash: string
+          payload_hash: string | null
           priority_score: number
           recommendation_type: string
           recommended_action_payload: Json
@@ -332,6 +332,7 @@ export type Database = {
           id?: string
           location_id?: string | null
           organization_id: string
+          payload_hash?: string | null
           priority_score?: number
           recommendation_type: string
           recommended_action_payload?: Json
@@ -355,6 +356,7 @@ export type Database = {
           id?: string
           location_id?: string | null
           organization_id?: string
+          payload_hash?: string | null
           priority_score?: number
           recommendation_type?: string
           recommended_action_payload?: Json
@@ -1307,7 +1309,7 @@ export type Database = {
         Args: {
           p_as_of: string
           p_intents: Json
-          p_location_id: string | null
+          p_location_id: string
           p_organization_id: string
           p_rule_version: string
         }
@@ -1348,7 +1350,7 @@ export type Database = {
           id: string
           location_id: string | null
           organization_id: string
-          payload_hash: string
+          payload_hash: string | null
           priority_score: number
           recommendation_type: string
           recommended_action_payload: Json
@@ -1411,7 +1413,7 @@ export type Database = {
           id: string
           location_id: string | null
           organization_id: string
-          payload_hash: string
+          payload_hash: string | null
           priority_score: number
           recommendation_type: string
           recommended_action_payload: Json
@@ -1433,7 +1435,11 @@ export type Database = {
         }
       }
       get_ai_evaluation_facts: {
-        Args: { p_as_of?: string; p_location_id?: string; p_organization_id: string }
+        Args: {
+          p_as_of?: string
+          p_location_id?: string
+          p_organization_id: string
+        }
         Returns: Json
       }
       get_dashboard_snapshot: {
@@ -1543,7 +1549,11 @@ export type Database = {
         Returns: string
       }
       reject_ai_recommendation: {
-        Args: { p_approval_id: string; p_expected_version: number; p_reason: string }
+        Args: {
+          p_approval_id: string
+          p_expected_version: number
+          p_reason: string
+        }
         Returns: {
           created_at: string
           decided_at: string | null

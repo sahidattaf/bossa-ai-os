@@ -105,7 +105,10 @@ async function applyEvaluation(
 ): Promise<ApplyEvaluationResult> {
   const { data, error } = await supabase.rpc("apply_ai_evaluation", {
     p_organization_id: organizationId,
-    p_location_id: locationId,
+    // p_location_id has no SQL default, so the generated type is a required
+    // (non-nullable) string even though the column and the runtime value are
+    // genuinely nullable — a real null is still sent over the wire.
+    p_location_id: locationId as unknown as string,
     p_as_of: asOf.toISOString(),
     p_rule_version: ruleVersion,
     p_intents: toSnakeCaseIntents(intents) as unknown as Json,
