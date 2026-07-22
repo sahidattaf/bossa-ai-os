@@ -29,7 +29,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { label: "Dashboard", segment: "dashboard", icon: LayoutDashboard, availableInPhase1: true },
-  { label: "AI Executive", segment: "ai-executive", icon: Sparkles, availableInPhase1: false },
+  { label: "AI Executive", segment: "ai-executive", icon: Sparkles, availableInPhase1: true },
   { label: "Orders", segment: "orders", icon: ShoppingCart, availableInPhase1: true },
   {
     label: "Reservations",
