@@ -33,7 +33,7 @@ Enabled and forced on every table. Two `SECURITY DEFINER` functions (`is_org_mem
 
 ## Cross-tenant security results
 
-26 pgTAP assertions (`supabase/tests/rls_cross_tenant.test.sql`) plus 9 application-level integration tests (`tests/integration/tenancy.test.ts`) covering: cross-tenant SELECT/INSERT/UPDATE/DELETE denial, staff unable to escalate or assign any role, the last-organization_owner safeguard, audit log immutability (including `record_audit_event` refusing to log against another org), the unknown-vs-inaccessible-organization distinction, and BOSSA/Papai data isolation per authenticated member. **Results:** see "Validation results" below — this sandbox has no Docker, so these only actually run in CI; results are from the real `database` CI job, not a local claim.
+29 pgTAP assertions (`supabase/tests/rls_cross_tenant.test.sql`) plus 9 application-level integration tests (`tests/integration/tenancy.test.ts`) covering: cross-tenant SELECT/INSERT/UPDATE/DELETE denial, staff unable to escalate or assign any role, the last-organization_owner safeguard, audit log immutability (including `record_audit_event` refusing to log against another org), the unknown-vs-inaccessible-organization distinction, and BOSSA/Papai data isolation per authenticated member. **Results:** see "Validation results" below — this sandbox has no Docker, so these only actually run in CI; results are from the real `database` CI job, not a local claim.
 
 ## Dashboard provider integration
 

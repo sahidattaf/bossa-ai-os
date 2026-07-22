@@ -77,13 +77,17 @@ export const resolveTenantForCurrentUser = cache(async function resolveTenantFor
       logoUrl: branding.logo_url ?? undefined,
       primaryColor: branding.primary_color,
       accentColor: branding.accent_color,
-      themeMode: branding.theme_mode,
-      borderRadius: branding.border_radius,
+      // organization_branding/settings store these as text + a CHECK
+      // constraint (not a Postgres enum), so the real generated types are
+      // plain `string` — the CHECK constraint is the actual runtime
+      // guarantee these casts rely on.
+      themeMode: branding.theme_mode as TenantConfig["branding"]["themeMode"],
+      borderRadius: branding.border_radius as TenantConfig["branding"]["borderRadius"],
     },
     locale: settings.locale,
     timezone: settings.timezone,
     currency: settings.currency,
-    serviceStatus: settings.service_status,
+    serviceStatus: settings.service_status as TenantConfig["serviceStatus"],
     aiManagerName: settings.ai_manager_name,
     productKpi: { label: settings.product_kpi_label, unit: settings.product_kpi_unit ?? undefined },
     dashboardWidgets,

@@ -46,7 +46,7 @@ export interface Database {
           slug: string;
           name: string;
           business_type: string;
-          status: "active" | "onboarding" | "paused" | "archived";
+          status: string;
           created_at: string;
           updated_at: string;
         };
@@ -55,7 +55,7 @@ export interface Database {
           slug: string;
           name: string;
           business_type?: string;
-          status?: "active" | "onboarding" | "paused" | "archived";
+          status?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -91,7 +91,7 @@ export interface Database {
           id: string;
           organization_id: string;
           user_id: string;
-          status: "active" | "invited" | "suspended";
+          status: string;
           invited_by: string | null;
           created_at: string;
           updated_at: string;
@@ -100,7 +100,7 @@ export interface Database {
           id?: string;
           organization_id: string;
           user_id: string;
-          status?: "active" | "invited" | "suspended";
+          status?: string;
           invited_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -165,8 +165,8 @@ export interface Database {
           logo_initials: string;
           primary_color: string;
           accent_color: string;
-          theme_mode: "light" | "dark" | "system";
-          border_radius: "compact" | "standard" | "soft";
+          theme_mode: string;
+          border_radius: string;
           updated_at: string;
         };
         Insert: {
@@ -175,8 +175,8 @@ export interface Database {
           logo_initials?: string;
           primary_color?: string;
           accent_color?: string;
-          theme_mode?: "light" | "dark" | "system";
-          border_radius?: "compact" | "standard" | "soft";
+          theme_mode?: string;
+          border_radius?: string;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["organization_branding"]["Insert"]>;
@@ -188,7 +188,7 @@ export interface Database {
           locale: string;
           timezone: string;
           currency: string;
-          service_status: "open" | "busy" | "opening_soon" | "closed";
+          service_status: string;
           ai_manager_name: string;
           product_kpi_label: string;
           product_kpi_unit: string | null;
@@ -200,7 +200,7 @@ export interface Database {
           locale?: string;
           timezone?: string;
           currency?: string;
-          service_status?: "open" | "busy" | "opening_soon" | "closed";
+          service_status?: string;
           ai_manager_name?: string;
           product_kpi_label?: string;
           product_kpi_unit?: string | null;
