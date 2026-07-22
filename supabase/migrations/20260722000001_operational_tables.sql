@@ -8,6 +8,13 @@
 -- referencing column as satisfied (MATCH SIMPLE), so the nullable
 -- cross-references below still allow NULL.
 
+-- Phase 2's `locations` only has a plain `id` primary key — add the
+-- (organization_id, id) unique constraint the composite FKs below need to
+-- reference. (Discovered by a real CI run: SQLSTATE 42830, "there is no
+-- unique constraint matching given keys for referenced table 'locations'".)
+alter table public.locations
+  add constraint locations_organization_id_id_key unique (organization_id, id);
+
 -- leads --------------------------------------------------------------------
 
 create table if not exists public.leads (
