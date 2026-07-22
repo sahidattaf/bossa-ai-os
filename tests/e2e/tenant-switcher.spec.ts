@@ -12,7 +12,7 @@ test.describe("tenant switcher navigation", () => {
     await page.getByRole("menuitem", { name: /Papai Since 1933/ }).click();
 
     await expect(page).toHaveURL("/papai/orders");
-    await expect(page.getByText(/Orders is coming in Phase 3/)).toBeVisible();
+    await expect(page.getByText(/Demo mode — read-only/)).toBeVisible();
   });
 
   test("switches from Papai back to BOSSA on the dashboard route", async ({ page, isMobile }) => {
