@@ -32,14 +32,17 @@ Don't merge these responsibilities across repos.
 - **Provider-neutral data layer** (`lib/dashboard/`) — `DashboardDataProvider` interface, backed by `MockDashboardDataProvider` (default) or `SupabaseDashboardDataProvider` (real, `organization_id`-scoped queries since Phase 3). No dashboard component imports mock data directly.
 - **Authentication and Row-Level Security** (`supabase/`, `lib/supabase/`) — Phase 2. See "Authentication and tenancy" below.
 - **Operational service layer** (`lib/operations/`) — leads/reservations/orders CRUD and status transitions, typed `OperationalError`s (`lib/errors.ts`) — Phase 3. See "Operational modules" below.
+- **AI Executive service layer** (`lib/ai/`) — deterministic rule engine, approval/execution security, and the local Hospitality OS plugin seam — Phase 4. See "AI Executive" below.
 
 ```text
 app/(workspace)/[organizationSlug]/
 ├── layout.tsx        # resolves tenant, 404s on unknown slug, wraps in AppShell
-├── dashboard/         # fully built (this phase's focus)
-└── {orders,reservations,crm,kitchen,menu,inventory,suppliers,
+├── dashboard/         # fully built
+├── {orders,reservations,crm}/   # fully built (Phase 3)
+├── ai-executive/      # fully built (Phase 4) — priority feed, approvals, recommendation detail
+└── {kitchen,menu,inventory,suppliers,
      reviews,marketing,finance,staff,tasks,reports,integrations,
-     settings,ai-executive}/   # routed, styled, phase-tagged "coming soon"
+     settings}/   # routed, styled, phase-tagged "coming soon"
 ```
 
 ---
@@ -119,7 +122,7 @@ Sign in at `/login` as a seeded dev user (`owner@bossa.test` / `DevPassword123!`
 
 - [`docs/SUPABASE_OPERATIONS.md`](docs/SUPABASE_OPERATIONS.md) — local setup, migrations, seeded users, rollback/recovery, linking a real project
 - [`docs/SECURITY_MODEL.md`](docs/SECURITY_MODEL.md) — threat model, the full RLS policy inventory, and why each deliberate exception exists
-- [`docs/PHASE_2_IMPLEMENTATION_REPORT.md`](docs/PHASE_2_IMPLEMENTATION_REPORT.md) / [`docs/PHASE_3_IMPLEMENTATION_REPORT.md`](docs/PHASE_3_IMPLEMENTATION_REPORT.md) — what shipped, validation results
+- [`docs/PHASE_2_IMPLEMENTATION_REPORT.md`](docs/PHASE_2_IMPLEMENTATION_REPORT.md) / [`docs/PHASE_3_IMPLEMENTATION_REPORT.md`](docs/PHASE_3_IMPLEMENTATION_REPORT.md) / [`docs/PHASE_4_IMPLEMENTATION_REPORT.md`](docs/PHASE_4_IMPLEMENTATION_REPORT.md) — what shipped, validation results
 - [`docs/OPERATIONAL_DATA_MODEL.md`](docs/OPERATIONAL_DATA_MODEL.md) — the Phase 3 `leads`/`reservations`/`orders`/`order_items`/`daily_kpi_snapshots` schema
 - [`docs/ORDER_RESERVATION_LEAD_WORKFLOWS.md`](docs/ORDER_RESERVATION_LEAD_WORKFLOWS.md) — status machines and the `lib/operations/` service layer
 - [`docs/KPI_SNAPSHOT_OPERATIONS.md`](docs/KPI_SNAPSHOT_OPERATIONS.md) — how daily KPI snapshots are generated and rerun
@@ -187,6 +190,18 @@ To add a widget: add its key to `WIDGET_KEYS`, add a field to `DashboardData` (`
 
 ---
 
+## AI Executive (Phase 4)
+
+`/[organizationSlug]/{ai-executive,ai-executive/approvals,ai-executive/recommendations/[id]}` are real, permission-gated, `organization_id`-scoped modules backed by `lib/ai/` — deterministic rules only, no LLM or external AI service. In `supabase` mode they read real signals/recommendations and support approve/reject/dismiss/execute; in `mock` mode they render the same routes as a labeled, read-only demo with static fictional fixtures (`lib/ai/mock-fixtures.ts`) and the recommendation-detail route 404s.
+
+- **Architecture and database model**: [`docs/AI_EXECUTIVE_ARCHITECTURE.md`](docs/AI_EXECUTIVE_ARCHITECTURE.md)
+- **Rule and signal catalog**: [`docs/AI_RULES_AND_SIGNALS.md`](docs/AI_RULES_AND_SIGNALS.md)
+- **Approval and guarded-action security**: [`docs/AI_APPROVAL_AND_ACTION_SECURITY.md`](docs/AI_APPROVAL_AND_ACTION_SECURITY.md)
+- **Hospitality OS plugin skill boundary**: [`docs/HOSPITALITY_PLUGIN_SKILL_ADAPTER.md`](docs/HOSPITALITY_PLUGIN_SKILL_ADAPTER.md)
+- **Manual evaluation**: `npm run ai:evaluate -- --org=<slug> --as-of=<iso>` (no scheduler is enabled, same pattern as `npm run kpi:generate`)
+
+---
+
 ## Migration status
 
 | Phase | Status |
@@ -194,8 +209,8 @@ To add a widget: add its key to `WIDGET_KEYS`, add a field to `DashboardData` (`
 | Phase 0 — Preserve prototype | Done (`legacy/static-dashboard/`) |
 | Phase 1 — Next.js + design-system foundation | Done — [report](docs/PHASE_1_IMPLEMENTATION_REPORT.md) |
 | Phase 2 — Supabase tenancy and authentication | Done — [report](docs/PHASE_2_IMPLEMENTATION_REPORT.md) |
-| **Phase 3 — Operational data layer and live dashboard** | **Done** — [report](docs/PHASE_3_IMPLEMENTATION_REPORT.md) |
-| Phase 4 — AI Executive MVP | Not started |
+| Phase 3 — Operational data layer and live dashboard | Done — [report](docs/PHASE_3_IMPLEMENTATION_REPORT.md) |
+| **Phase 4 — AI Executive MVP** | **Done** — [report](docs/PHASE_4_IMPLEMENTATION_REPORT.md) |
 | Phase 5 — Integrations | Not started |
 | Phase 6 — SaaS commercialization | Not started |
 

@@ -1,6 +1,6 @@
 # Security Model
 
-How Hospitality OS enforces tenant isolation, authentication, and role-based access. Written for anyone reviewing or extending the Supabase schema in `supabase/migrations/`. Covers Phase 2 (tenancy/auth/RBAC) and Phase 3 (operational data) — the RLS pattern is identical across both; Phase 3 additions are called out in their own section below.
+How Hospitality OS enforces tenant isolation, authentication, and role-based access. Written for anyone reviewing or extending the Supabase schema in `supabase/migrations/`. Covers Phase 2 (tenancy/auth/RBAC), Phase 3 (operational data), and Phase 4 (AI Executive) — the RLS pattern is identical across all three; Phase 3 and Phase 4 additions are called out in their own sections below.
 
 ---
 
@@ -121,8 +121,29 @@ Unlike every other function in this schema (all `SECURITY DEFINER`, needed to re
 
 `enforce_status_transition()` (BEFORE, validates) and `audit_status_transition()` (AFTER, records) are separate, generic, reusable across every status column in the schema — see `docs/ORDER_RESERVATION_LEAD_WORKFLOWS.md` for the full rulebook and reasoning.
 
+## Phase 4 additions
+
+Seven new tenant-owned tables (`ai_rule_configs`, `ai_signals`, `ai_recommendations`, `ai_recommendation_evidence`, `ai_approvals`, `ai_action_attempts`, `ai_outcomes`) power the AI Executive workspace — full schema in `docs/AI_EXECUTIVE_ARCHITECTURE.md`. The RLS pattern is identical to Phase 2/3's, with four additions worth calling out specifically:
+
+### Six of seven tables are entirely function-mediated, not just RLS-restricted
+
+`ai_rule_configs` is the only one of the seven with an `authenticated` INSERT/UPDATE grant at all. `ai_signals` and `ai_recommendation_evidence` are written exclusively by `apply_ai_evaluation()`; `ai_recommendations` and `ai_approvals` only ever change through the six `SECURITY DEFINER` functions in `20260723000007_ai_approval_functions.sql` (`approve_ai_recommendation`, `reject_ai_recommendation`, `dismiss_ai_recommendation`, `begin_ai_recommendation_execution`, `record_ai_action_attempt`, `record_ai_outcome`); `ai_action_attempts` is append-only, the same immutability guarantee `audit_logs` has. Full reasoning in `docs/AI_APPROVAL_AND_ACTION_SECURITY.md`.
+
+### Server-controlled payload hashing as a tamper-detection anchor
+
+`ai_recommendations.payload_hash` is a `GENERATED ALWAYS AS (...) STORED` column — Postgres computes it, no client or application code can ever supply it. `approve_ai_recommendation()` snapshots it at decision time; `begin_ai_recommendation_execution()` compares that snapshot against the recommendation's *current* hash before allowing execution to start, refusing to proceed on a mismatch. This is what makes "the payload changed after approval" a structurally detectable condition rather than something a careful reviewer has to notice by eye.
+
+### Polymorphic reference validation via one generic trigger
+
+`ai_signals` and `ai_recommendation_evidence` can each reference one of five domain tables (`lead`, `reservation`, `order`, `order_item`, `daily_kpi_snapshot`) through `source_entity_type`/`source_entity_id` — no single foreign key can express that. `validate_ai_source_entity_reference()` (one `BEFORE INSERT/UPDATE` trigger function, attached to both tables) reads the row generically via `to_jsonb(new)` and checks existence + organization match against whichever table `source_entity_type` names, raising `RELATED_ENTITY_MISMATCH` on a cross-tenant or nonexistent reference — the same "schema-level impossibility" property Phase 3's composite FKs give single-table references, extended to a polymorphic case via a trigger.
+
+### Finance-evidence redaction enforced by RLS, not application code
+
+`ai_recommendation_evidence`'s SELECT policy adds `AND (NOT is_finance_sensitive OR has_permission(organization_id, 'finance.read'))` on top of the ordinary `ai.executive.read` gate. A caller without `finance.read` sees a recommendation's title and summary but not the specific revenue/average-ticket evidence rows backing it — the redaction happens at the database layer, so no UI component can accidentally leak it by skipping a check.
+
 ## What's still not covered
 
 - Rate limiting / brute-force protection on `/login` (Supabase Auth's own defaults apply; nothing additional was added).
 - Self-serve organization creation — provisioning a new organization is still a manual, service-role administrative action.
 - Phase 3B domains (inventory, suppliers, menu costing, reviews, staff/tasks, finance) — no tables, policies, or screens exist for any of them yet.
+- A learning/memory loop for the AI Executive — `ai_outcomes` records results for human review, but nothing yet feeds them back into rule weighting or priority scoring.
