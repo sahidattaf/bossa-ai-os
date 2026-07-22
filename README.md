@@ -29,8 +29,9 @@ Don't merge these responsibilities across repos.
 - **shadcn/ui-compatible primitives** (`components/ui/`) built on Radix UI + `class-variance-authority`.
 - **Tenant configuration** (`lib/tenancy/`) resolves `/[organizationSlug]` to a typed `TenantConfig`, either from a static array (`mock` mode) or, since Phase 2, from real Supabase rows behind an authenticated, membership-verified query (`supabase` mode) — see below.
 - **Widget system** (`lib/widgets/`) — a typed, Zod-validated registry mapping each dashboard widget key to a component and a data selector.
-- **Provider-neutral data layer** (`lib/dashboard/`) — `DashboardDataProvider` interface, backed by `MockDashboardDataProvider` (default) or `SupabaseDashboardDataProvider` (Phase 2). No dashboard component imports mock data directly.
+- **Provider-neutral data layer** (`lib/dashboard/`) — `DashboardDataProvider` interface, backed by `MockDashboardDataProvider` (default) or `SupabaseDashboardDataProvider` (real, `organization_id`-scoped queries since Phase 3). No dashboard component imports mock data directly.
 - **Authentication and Row-Level Security** (`supabase/`, `lib/supabase/`) — Phase 2. See "Authentication and tenancy" below.
+- **Operational service layer** (`lib/operations/`) — leads/reservations/orders CRUD and status transitions, typed `OperationalError`s (`lib/errors.ts`) — Phase 3. See "Operational modules" below.
 
 ```text
 app/(workspace)/[organizationSlug]/
@@ -118,7 +119,10 @@ Sign in at `/login` as a seeded dev user (`owner@bossa.test` / `DevPassword123!`
 
 - [`docs/SUPABASE_OPERATIONS.md`](docs/SUPABASE_OPERATIONS.md) — local setup, migrations, seeded users, rollback/recovery, linking a real project
 - [`docs/SECURITY_MODEL.md`](docs/SECURITY_MODEL.md) — threat model, the full RLS policy inventory, and why each deliberate exception exists
-- [`docs/PHASE_2_IMPLEMENTATION_REPORT.md`](docs/PHASE_2_IMPLEMENTATION_REPORT.md) — what shipped, validation results
+- [`docs/PHASE_2_IMPLEMENTATION_REPORT.md`](docs/PHASE_2_IMPLEMENTATION_REPORT.md) / [`docs/PHASE_3_IMPLEMENTATION_REPORT.md`](docs/PHASE_3_IMPLEMENTATION_REPORT.md) — what shipped, validation results
+- [`docs/OPERATIONAL_DATA_MODEL.md`](docs/OPERATIONAL_DATA_MODEL.md) — the Phase 3 `leads`/`reservations`/`orders`/`order_items`/`daily_kpi_snapshots` schema
+- [`docs/ORDER_RESERVATION_LEAD_WORKFLOWS.md`](docs/ORDER_RESERVATION_LEAD_WORKFLOWS.md) — status machines and the `lib/operations/` service layer
+- [`docs/KPI_SNAPSHOT_OPERATIONS.md`](docs/KPI_SNAPSHOT_OPERATIONS.md) — how daily KPI snapshots are generated and rerun
 
 ### Roles and permissions, briefly
 
@@ -171,23 +175,31 @@ To add a widget: add its key to `WIDGET_KEYS`, add a field to `DashboardData` (`
 
 ---
 
+## Operational modules (Phase 3)
+
+`/[organizationSlug]/{orders,reservations,crm}` are real, permission-gated, `organization_id`-scoped modules backed by `lib/operations/` — not placeholders. In `supabase` mode they read/write real Postgres rows through RLS; in `mock` mode they render the same routes as a labeled, read-only demo with static fictional fixtures (`lib/operations/mock-fixtures.ts`) and no mutation forms.
+
+- **Schema**: [`docs/OPERATIONAL_DATA_MODEL.md`](docs/OPERATIONAL_DATA_MODEL.md)
+- **Status machines and workflows**: [`docs/ORDER_RESERVATION_LEAD_WORKFLOWS.md`](docs/ORDER_RESERVATION_LEAD_WORKFLOWS.md)
+- **Live dashboard aggregation**: `get_dashboard_snapshot()` (one SECURITY INVOKER RPC — see `docs/SECURITY_MODEL.md`), consumed by `lib/dashboard/supabase-provider.ts`
+- **Daily KPI snapshots**: [`docs/KPI_SNAPSHOT_OPERATIONS.md`](docs/KPI_SNAPSHOT_OPERATIONS.md) — manual invocation only, `npm run kpi:generate`
+- **Typed errors**: every `lib/operations/` function and the dashboard provider surface one of `lib/errors.ts`'s `OperationalErrorCode`s, never a raw Postgres error
+
+---
+
 ## Migration status
 
 | Phase | Status |
 | --- | --- |
 | Phase 0 — Preserve prototype | Done (`legacy/static-dashboard/`) |
 | Phase 1 — Next.js + design-system foundation | Done — [report](docs/PHASE_1_IMPLEMENTATION_REPORT.md) |
-| **Phase 2 — Supabase tenancy and authentication** | **Done** — [report](docs/PHASE_2_IMPLEMENTATION_REPORT.md) |
-| Phase 3 — Live operational modules | Not started |
+| Phase 2 — Supabase tenancy and authentication | Done — [report](docs/PHASE_2_IMPLEMENTATION_REPORT.md) |
+| **Phase 3 — Operational data layer and live dashboard** | **Done** — [report](docs/PHASE_3_IMPLEMENTATION_REPORT.md) |
 | Phase 4 — AI Executive MVP | Not started |
 | Phase 5 — Integrations | Not started |
 | Phase 6 — SaaS commercialization | Not started |
 
 See the full backlog in [`docs/MULTI_TENANT_HOSPITALITY_OS_ARCHITECTURE.md`](docs/MULTI_TENANT_HOSPITALITY_OS_ARCHITECTURE.md).
-
-## Next phase: live operational modules
-
-Phase 3 adds the operational tables (orders, reservations, CRM/leads, inventory, menu & costing, staff/tasks, finance snapshots), each following the same `organization_id` + RLS pattern Phase 2 established. `SupabaseDashboardDataProvider` (`lib/dashboard/supabase-provider.ts`) currently returns honest zero/empty values for every operational widget — Phase 3 replaces those with real queries. `has_permission()` already recognizes the relevant permission keys (`orders.read`, `orders.write`, etc.), and `record_audit_event()` is ready for operational mutations to log against. No dashboard, widget, or shell component should need to change.
 
 ---
 

@@ -31,9 +31,9 @@ test.describe("unknown tenant", () => {
 });
 
 test.describe("module routes", () => {
-  test("renders a properly routed coming-soon state for Orders", async ({ page }) => {
+  test("renders the live Orders module as a read-only demo in mock mode", async ({ page }) => {
     await page.goto("/bossa/orders");
     await expect(page.getByRole("heading", { name: "Orders" })).toBeVisible();
-    await expect(page.getByText(/Orders is coming in Phase 3/)).toBeVisible();
+    await expect(page.getByText(/Demo mode — read-only/)).toBeVisible();
   });
 });

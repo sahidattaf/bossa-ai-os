@@ -38,7 +38,7 @@ insert into public.organization_settings (
   'Fire Boxes Sold', 'boxes',
   '[
     {"key":"greeting","order":1,"size":"full","visible":true},
-    {"key":"revenueToday","order":2,"size":"sm","visible":true},
+    {"key":"revenueToday","order":2,"size":"sm","visible":true,"requiredPermission":"finance.read"},
     {"key":"ordersToday","order":3,"size":"sm","visible":true},
     {"key":"reservationsTonight","order":4,"size":"sm","visible":true},
     {"key":"whatsappLeads","order":5,"size":"sm","visible":true},
@@ -58,7 +58,7 @@ insert into public.organization_settings (
   'Heritage Platters Served', 'platters',
   '[
     {"key":"greeting","order":1,"size":"full","visible":true},
-    {"key":"revenueToday","order":2,"size":"sm","visible":true},
+    {"key":"revenueToday","order":2,"size":"sm","visible":true,"requiredPermission":"finance.read"},
     {"key":"ordersToday","order":3,"size":"sm","visible":true},
     {"key":"reservationsTonight","order":4,"size":"sm","visible":true},
     {"key":"whatsappLeads","order":5,"size":"sm","visible":true},
@@ -133,3 +133,70 @@ on conflict (membership_id, role_id) do nothing;
 
 -- outsider@example.test intentionally has no membership anywhere — used to
 -- exercise the "known but inaccessible organization" permission-state path.
+
+-- Operational data (Phase 3A, issue #16 scope G) ------------------------
+-- All operational records are pinned to a fixed date (2026-07-20) rather
+-- than `now()`/`current_date`, so dashboard/KPI assertions in pgTAP and
+-- integration tests stay deterministic regardless of when the suite runs —
+-- tests pass this same date as calculate_daily_kpi_snapshot()'s/
+-- get_dashboard_snapshot()'s explicit as-of argument instead of relying on
+-- "today". Every fixture is clearly fake test data; no real customer PII.
+
+-- BOSSA leads ------------------------------------------------------------
+insert into public.leads (id, organization_id, location_id, lead_type, source, contact_name, phone, email, guest_count, requested_date, status, owner_user_id, created_at) values
+  ('00000000-0000-0000-0004-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0001-000000000001', 'reservation', 'whatsapp', 'Maria Fernandez', '+5999000001', 'maria.f@example.test', 4, '2026-07-20 19:00+00', 'new', null, '2026-07-20 09:00+00'),
+  ('00000000-0000-0000-0004-000000000002', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0001-000000000001', 'order', 'website', 'Julio Pantophlet', '+5999000002', null, null, null, 'contacted', '00000000-0000-0000-0002-000000000001', '2026-07-20 10:15+00'),
+  ('00000000-0000-0000-0004-000000000003', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0001-000000000001', 'catering', 'phone', 'Estrella Boekhoudt', '+5999000003', null, 25, null, 'qualified', '00000000-0000-0000-0002-000000000001', '2026-07-19 16:00+00')
+on conflict (id) do nothing;
+
+-- BOSSA reservations -------------------------------------------------------
+insert into public.reservations (id, organization_id, location_id, confirmation_code, guest_name, phone, party_size, reservation_at, duration_minutes, source, status, assigned_user_id, created_at) values
+  ('00000000-0000-0000-0005-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0001-000000000001', 'BOSSA-R001', 'Sofia Winterdal', '+5999000010', 4, '2026-07-20 19:00+00', 90, 'whatsapp', 'confirmed', '00000000-0000-0000-0002-000000000002', '2026-07-19 11:00+00'),
+  ('00000000-0000-0000-0005-000000000002', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0001-000000000001', 'BOSSA-R002', 'Dario Croes', '+5999000011', 2, '2026-07-20 20:00+00', 90, 'website', 'pending', null, '2026-07-20 08:00+00'),
+  ('00000000-0000-0000-0005-000000000003', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0001-000000000001', 'BOSSA-R003', 'Ingrid Statia', '+5999000012', 6, '2026-07-20 18:00+00', 120, 'phone', 'cancelled', null, '2026-07-18 09:00+00')
+on conflict (id) do nothing;
+
+-- BOSSA orders + order_items ------------------------------------------------
+-- subtotal/total are intentionally omitted from these inserts: the
+-- money-integrity triggers in 20260722000003 compute both (subtotal from
+-- order_items via the AFTER trigger below, total from the fee columns).
+insert into public.orders (id, organization_id, location_id, order_number, channel, fulfillment_type, customer_name, phone, discount_total, tax_total, delivery_fee, currency, status, payment_status, created_at) values
+  ('00000000-0000-0000-0006-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0001-000000000001', 'BOSSA-1001', 'dine_in', 'dine_in', 'Julio Pantophlet', '+5999000002', 0, 5.00, 0, 'USD', 'completed', 'paid', '2026-07-20 12:30+00'),
+  ('00000000-0000-0000-0006-000000000002', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0001-000000000001', 'BOSSA-1002', 'takeout', 'pickup', 'Dario Croes', '+5999000011', 0, 2.56, 0, 'USD', 'pending', 'unpaid', '2026-07-20 13:00+00')
+on conflict (id) do nothing;
+
+insert into public.order_items (id, organization_id, order_id, item_name, quantity, unit_price) values
+  ('00000000-0000-0000-0007-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0006-000000000001', 'Grilled Asado Ribs', 2, 28.00),
+  ('00000000-0000-0000-0007-000000000002', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0006-000000000001', 'Fried Yuca', 1, 6.50),
+  ('00000000-0000-0000-0007-000000000003', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0006-000000000002', 'Seafood Paella', 1, 32.00)
+on conflict (id) do nothing;
+
+-- Papai leads --------------------------------------------------------------
+insert into public.leads (id, organization_id, location_id, lead_type, source, contact_name, phone, email, guest_count, status, owner_user_id, created_at) values
+  ('00000000-0000-0000-0004-000000000004', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0001-000000000002', 'reservation', 'social', 'Ronnie Semeleer', '+5999000020', null, 3, 'new', null, '2026-07-20 09:30+00'),
+  ('00000000-0000-0000-0004-000000000005', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0001-000000000002', 'general', 'referral', 'Chandra Milliard', '+5999000021', 'chandra.m@example.test', null, 'contacted', '00000000-0000-0000-0002-000000000003', '2026-07-20 11:00+00')
+on conflict (id) do nothing;
+
+-- Papai reservations ---------------------------------------------------------
+insert into public.reservations (id, organization_id, location_id, confirmation_code, guest_name, phone, party_size, reservation_at, duration_minutes, source, status, created_at) values
+  ('00000000-0000-0000-0005-000000000004', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0001-000000000002', 'PAPAI-R001', 'Ronnie Semeleer', '+5999000020', 3, '2026-07-20 19:30+00', 90, 'social', 'confirmed', '2026-07-19 10:00+00'),
+  ('00000000-0000-0000-0005-000000000005', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0001-000000000002', 'PAPAI-R002', 'Bettina Kock', '+5999000022', 5, '2026-07-20 20:30+00', 90, 'phone', 'pending', '2026-07-20 09:00+00')
+on conflict (id) do nothing;
+
+-- Papai orders + order_items -------------------------------------------------
+insert into public.orders (id, organization_id, location_id, order_number, channel, fulfillment_type, customer_name, phone, discount_total, tax_total, delivery_fee, currency, status, payment_status, created_at) values
+  ('00000000-0000-0000-0006-000000000003', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0001-000000000002', 'PAPAI-1001', 'dine_in', 'dine_in', 'Chandra Milliard', '+5999000021', 0, 3.60, 0, 'ANG', 'completed', 'paid', '2026-07-20 12:00+00')
+on conflict (id) do nothing;
+
+insert into public.order_items (id, organization_id, order_id, item_name, quantity, unit_price) values
+  ('00000000-0000-0000-0007-000000000005', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0006-000000000003', 'Heritage Platter', 1, 45.00)
+on conflict (id) do nothing;
+
+-- Daily KPI snapshots --------------------------------------------------------
+-- Generated by calling the real idempotent function rather than
+-- hand-computing values, so seed data can never drift from what the
+-- function itself would produce for the same inputs. auth.uid() is null in
+-- this raw psql/seed context, which the function treats as a trusted
+-- service-context caller (see 20260722000006_kpi_snapshot_function.sql).
+select public.calculate_daily_kpi_snapshot('00000000-0000-0000-0000-000000000001'::uuid, '2026-07-20'::date, null);
+select public.calculate_daily_kpi_snapshot('00000000-0000-0000-0000-000000000002'::uuid, '2026-07-20'::date, null);

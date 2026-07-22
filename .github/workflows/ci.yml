@@ -65,24 +65,81 @@ jobs:
         run: supabase db reset
 
       - name: Run pgTAP cross-tenant security tests
-        run: supabase test db
+        id: pgtap
+        shell: bash
+        run: |
+          set +e
+          supabase test db > /tmp/pgtap.log 2>&1
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo "::group::pgTAP failure summary"
+            grep -nE -B 8 -A 14 "not ok|FAILED|ERROR|error:|Dubious|Looks like|planned|tests failed" /tmp/pgtap.log || tail -n 200 /tmp/pgtap.log
+            echo "::endgroup::"
+          else
+            tail -n 100 /tmp/pgtap.log
+          fi
+
+          exit "$status"
+
+      - name: Upload complete pgTAP log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pgtap-log
+          path: /tmp/pgtap.log
+          retention-days: 14
+          if-no-files-found: warn
 
       - name: Regenerate database types from the real schema and verify they still typecheck
         run: |
           npm run supabase:types
           npm run typecheck
-          if ! git diff --quiet -- lib/supabase/database.types.ts; then
-            echo "::warning::Committed lib/supabase/database.types.ts differs from freshly generated output (see diff below). The app still typechecks against the real schema, so this is informational, not a failure — regenerate and commit if the diff looks meaningful."
-            git diff -- lib/supabase/database.types.ts
-          fi
+
+      - name: Upload generated database types
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-database-types
+          path: lib/supabase/database.types.ts
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Fail if generated database types drift from what's committed
+        run: git diff --exit-code -- lib/supabase/database.types.ts
 
       - name: Run integration tests against the local instance
+        id: integration
+        shell: bash
         run: |
+          set +e
           supabase status -o env > /tmp/supabase-status.env
           set -a
           source /tmp/supabase-status.env
           set +a
-          SUPABASE_URL="$API_URL" SUPABASE_ANON_KEY="$ANON_KEY" npm run test:integration
+          SUPABASE_URL="$API_URL" SUPABASE_ANON_KEY="$ANON_KEY" npm run test:integration > /tmp/integration.log 2>&1
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo "::group::Integration test failure summary"
+            grep -nE -B 4 -A 25 "FAIL|✗|Error:|AssertionError|expected|Expected|received|Received" /tmp/integration.log || tail -n 200 /tmp/integration.log
+            echo "::endgroup::"
+          else
+            tail -n 100 /tmp/integration.log
+          fi
+
+          exit "$status"
+
+      - name: Upload complete integration test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-log
+          path: /tmp/integration.log
+          retention-days: 14
+          if-no-files-found: warn
 
       - name: Stop local Supabase stack
         if: always()
