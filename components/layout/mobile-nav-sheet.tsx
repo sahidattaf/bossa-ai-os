@@ -7,14 +7,16 @@ import { NavList } from "@/components/layout/nav-list";
 import { OrgSwitcher } from "@/components/layout/org-switcher";
 import { ServiceStatusIndicator } from "@/components/layout/service-status-indicator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { listTenantSummaries, toTenantSummary } from "@/lib/tenancy/tenants";
+import type { TenantSummary } from "@/lib/tenancy/tenants";
+import { toTenantSummary } from "@/lib/tenancy/tenants";
 import type { TenantConfig } from "@/lib/tenancy/types";
 
 export interface MobileNavSheetProps {
   tenant: TenantConfig;
+  tenants: readonly TenantSummary[];
 }
 
-function MobileNavSheet({ tenant }: MobileNavSheetProps) {
+function MobileNavSheet({ tenant, tenants }: MobileNavSheetProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -31,7 +33,7 @@ function MobileNavSheet({ tenant }: MobileNavSheetProps) {
         <SheetHeader>
           <SheetTitle>{tenant.name}</SheetTitle>
         </SheetHeader>
-        <OrgSwitcher currentTenant={toTenantSummary(tenant)} tenants={listTenantSummaries()} />
+        <OrgSwitcher currentTenant={toTenantSummary(tenant)} tenants={tenants} />
         <div className="flex-1 overflow-y-auto">
           <NavList organizationSlug={tenant.slug} onNavigate={() => setOpen(false)} />
         </div>

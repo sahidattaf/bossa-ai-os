@@ -11,6 +11,9 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export interface Database {
+  __InternalSupabase: {
+    PostgrestVersion: "12";
+  };
   public: {
     Tables: {
       profiles: {
@@ -29,11 +32,13 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Insert"]>;
+        Relationships: [];
       };
       platform_admins: {
         Row: { user_id: string; created_at: string };
         Insert: { user_id: string; created_at?: string };
         Update: Partial<Database["public"]["Tables"]["platform_admins"]["Insert"]>;
+        Relationships: [];
       };
       organizations: {
         Row: {
@@ -55,6 +60,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["organizations"]["Insert"]>;
+        Relationships: [];
       };
       locations: {
         Row: {
@@ -78,6 +84,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["locations"]["Insert"]>;
+        Relationships: [];
       };
       organization_memberships: {
         Row: {
@@ -99,6 +106,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["organization_memberships"]["Insert"]>;
+        Relationships: [];
       };
       roles: {
         Row: {
@@ -118,16 +126,19 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["roles"]["Insert"]>;
+        Relationships: [];
       };
       permissions: {
         Row: { id: string; key: string; description: string; created_at: string };
         Insert: { id?: string; key: string; description?: string; created_at?: string };
         Update: Partial<Database["public"]["Tables"]["permissions"]["Insert"]>;
+        Relationships: [];
       };
       role_permissions: {
         Row: { role_id: string; permission_id: string };
         Insert: { role_id: string; permission_id: string };
         Update: Partial<Database["public"]["Tables"]["role_permissions"]["Insert"]>;
+        Relationships: [];
       };
       membership_roles: {
         Row: {
@@ -145,6 +156,7 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["membership_roles"]["Insert"]>;
+        Relationships: [];
       };
       organization_branding: {
         Row: {
@@ -168,6 +180,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["organization_branding"]["Insert"]>;
+        Relationships: [];
       };
       organization_settings: {
         Row: {
@@ -195,6 +208,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["organization_settings"]["Insert"]>;
+        Relationships: [];
       };
       audit_logs: {
         Row: {
@@ -218,6 +232,7 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["audit_logs"]["Insert"]>;
+        Relationships: [];
       };
     };
     Views: Record<string, never>;
@@ -239,6 +254,18 @@ export interface Database {
           p_metadata?: Json;
         };
         Returns: string;
+      };
+      get_organization_summary: {
+        Args: { p_slug: string };
+        Returns: { id: string; slug: string; name: string }[];
+      };
+      get_my_permissions: {
+        Args: { p_organization_id: string };
+        Returns: string[];
+      };
+      get_my_role_names: {
+        Args: { p_organization_id: string };
+        Returns: string[];
       };
     };
     Enums: Record<string, never>;

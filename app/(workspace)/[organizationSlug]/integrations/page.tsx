@@ -1,21 +1,9 @@
-import { notFound } from "next/navigation";
-
 import { ComingSoonState } from "@/components/layout/coming-soon-state";
 import { getNavItem } from "@/lib/navigation";
-import { getTenantBySlug } from "@/lib/tenancy/tenants";
 
 const NAV_ITEM = getNavItem("integrations");
 
-export default async function IntegrationsPage({
-  params,
-}: {
-  params: Promise<{ organizationSlug: string }>;
-}) {
-  const { organizationSlug } = await params;
-  if (!getTenantBySlug(organizationSlug)) {
-    notFound();
-  }
-
+export default function IntegrationsPage() {
   return (
     <ComingSoonState
       title={NAV_ITEM.label}
