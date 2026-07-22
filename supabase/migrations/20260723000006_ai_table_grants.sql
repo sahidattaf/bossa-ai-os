@@ -17,7 +17,13 @@ grant select on public.ai_outcomes to authenticated;
 -- ai_rule_configs is the one AI table with direct authenticated writes
 -- (issue #18 decision #9 explicitly excludes it from the function-mediated
 -- list), so "audit every configuration change" is enforced here by a
--- dedicated trigger rather than by routing writes through a function.
+-- dedicated trigger rather than by routing writes through a function. Guards
+-- its record_audit_event() call on auth.uid() is not null, same convention
+-- as calculate_daily_kpi_snapshot()/apply_ai_evaluation() — a service-role
+-- writer (seed.sql's raw psql context has no JWT at all) is trusted and
+-- skips the audit event, rather than tripping record_audit_event()'s own
+-- "caller must belong to this organization" check for an actor that isn't
+-- authenticated as anyone.
 create or replace function public.audit_ai_rule_config_change()
 returns trigger
 language plpgsql
@@ -25,19 +31,21 @@ security definer
 set search_path = public, pg_temp
 as $$
 begin
-  perform public.record_audit_event(
-    new.organization_id,
-    case when tg_op = 'INSERT' then 'ai_rule_config.created' else 'ai_rule_config.updated' end,
-    'ai_rule_config',
-    new.id,
-    jsonb_build_object(
-      'rule_key', new.rule_key,
-      'location_id', new.location_id,
-      'enabled', new.enabled,
-      'config', new.config,
-      'previous_config', case when tg_op = 'UPDATE' then old.config else null end
-    )
-  );
+  if auth.uid() is not null then
+    perform public.record_audit_event(
+      new.organization_id,
+      case when tg_op = 'INSERT' then 'ai_rule_config.created' else 'ai_rule_config.updated' end,
+      'ai_rule_config',
+      new.id,
+      jsonb_build_object(
+        'rule_key', new.rule_key,
+        'location_id', new.location_id,
+        'enabled', new.enabled,
+        'config', new.config,
+        'previous_config', case when tg_op = 'UPDATE' then old.config else null end
+      )
+    );
+  end if;
   return new;
 end;
 $$;
