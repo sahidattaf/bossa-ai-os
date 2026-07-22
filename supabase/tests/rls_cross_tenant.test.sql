@@ -7,7 +7,7 @@
 create extension if not exists pgtap with schema extensions;
 
 begin;
-select plan(26);
+select plan(29);
 
 -- Fixed seed UUIDs (see supabase/seed.sql).
 -- BOSSA org:            00000000-0000-0000-0000-000000000001
