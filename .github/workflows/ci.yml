@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: hospitality-os-ci-${{ github.workflow }}-${{ github.ref }}
@@ -41,10 +41,8 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: Checkout PR head branch
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -107,25 +105,6 @@ jobs:
           path: lib/supabase/database.types.ts
           retention-days: 14
           if-no-files-found: error
-
-      - name: Commit exact generated types when drift is detected
-        if: github.event_name == 'pull_request'
-        shell: bash
-        run: |
-          if git diff --quiet -- lib/supabase/database.types.ts; then
-            echo "Generated database types already match the committed file."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add lib/supabase/database.types.ts
-          git commit -m "fix: sync generated Supabase database types"
-          git push origin HEAD:${GITHUB_HEAD_REF}
-
-          echo "The exact generated file was committed to ${GITHUB_HEAD_REF}."
-          echo "A new workflow run will validate that commit."
-          exit 1
 
       - name: Fail if generated database types drift from what's committed
         run: git diff --exit-code -- lib/supabase/database.types.ts
