@@ -91,12 +91,20 @@ select throws_ok(
 
 -- 4: BOSSA staff cannot change a lead's status either (crm.write required by
 -- RLS on the UPDATE itself, independent of the status-transition trigger).
-select throws_ok(
-  $$ update public.leads set status = 'contacted' where id = '00000000-0000-0000-0004-000000000001' $$,
-  '42501',
-  null::text,
-  'BOSSA staff cannot update a lead status (lacks crm.write)'
-);
+-- Unlike INSERT's WITH CHECK (which raises 42501 outright — see test 3
+-- above and test 6/7 below), an UPDATE's USING clause makes the row
+-- invisible before the statement can touch it: the UPDATE succeeds but
+-- affects zero rows, exactly the "cross-tenant/unauthorized UPDATE is a
+-- silent no-op" behavior already documented in docs/SECURITY_MODEL.md and
+-- exercised the same way in rls_cross_tenant.test.sql.
+with attempted as (
+  update public.leads set status = 'contacted'
+  where id = '00000000-0000-0000-0004-000000000001'
+  returning id
+)
+select is(
+  count(*)::int, 0, 'BOSSA staff cannot update a lead status (lacks crm.write) — zero rows affected'
+) from attempted;
 
 -- 5: the owner (crm.write) can create a lead in their own org.
 select pg_temp.authenticate_as('00000000-0000-0000-0002-000000000001');
