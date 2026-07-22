@@ -53,6 +53,30 @@ exception when others then
 end;
 $$;
 
+-- Captured now, before any authenticate_as() switches the session role away
+-- from this connection's default (RLS-bypassing) role — ai_approvals/
+-- ai_recommendations rows are gen_random_uuid()'d by apply_ai_evaluation(),
+-- not fixed literals like Phase 3's seeded leads/orders, so later
+-- cross-tenant assertions need a way to reference "BOSSA's row" without a
+-- live subquery that RLS would filter to zero rows once we're authenticated
+-- as a user with no BOSSA membership at all.
+create temporary table ai_test_ids (key text primary key, id uuid not null);
+grant select on ai_test_ids to authenticated;
+
+insert into ai_test_ids (key, id)
+select 'bossa_assign_lead_owner_approval', a.id
+from public.ai_approvals a
+join public.ai_recommendations r on r.id = a.recommendation_id
+where a.organization_id = '00000000-0000-0000-0000-000000000001'
+  and r.recommended_action_type = 'assign_lead_owner';
+
+insert into ai_test_ids (key, id)
+select 'bossa_navigate_recommendation', id
+from public.ai_recommendations
+where organization_id = '00000000-0000-0000-0000-000000000001'
+  and recommended_action_type = 'navigate'
+limit 1;
+
 -- 1-3: permission-scoped visibility. BOSSA owner sees BOSSA's 2 seeded
 -- recommendations; nothing from Papai; an outsider with no membership
 -- anywhere sees none at all (has_permission requires membership first).
@@ -83,7 +107,7 @@ select pg_temp.authenticate_as('00000000-0000-0000-0002-000000000001');
 select is(
   (select count(*)::int from public.ai_recommendation_evidence e
    join public.ai_recommendations r on r.id = e.recommendation_id
-   where r.dedupe_key like 'revenue_below_target_review:%' and r.organization_id = '00000000-0000-0000-0000-000000000001'),
+   where r.dedupe_key like 'revenue_below_target:%' and r.organization_id = '00000000-0000-0000-0000-000000000001'),
   1,
   'BOSSA owner (finance.read) sees the finance-sensitive evidence row'
 );
@@ -91,7 +115,7 @@ select pg_temp.authenticate_as('00000000-0000-0000-0002-000000000002');
 select is(
   (select count(*)::int from public.ai_recommendation_evidence e
    join public.ai_recommendations r on r.id = e.recommendation_id
-   where r.dedupe_key like 'revenue_below_target_review:%' and r.organization_id = '00000000-0000-0000-0000-000000000001'),
+   where r.dedupe_key like 'revenue_below_target:%' and r.organization_id = '00000000-0000-0000-0000-000000000001'),
   0,
   'BOSSA staff (no finance.read) sees zero rows for the same finance-sensitive evidence'
 );
@@ -232,7 +256,7 @@ select ok(
   pg_temp.expect_error_message(
     format(
       $$ select public.approve_ai_recommendation('%s'::uuid, 1) $$,
-      (select id from public.ai_approvals where organization_id = '00000000-0000-0000-0000-000000000001')
+      (select id from ai_test_ids where key = 'bossa_assign_lead_owner_approval')
     )
   ) like 'PERMISSION_DENIED:%',
   'Papai owner cannot approve BOSSA''s pending approval (resolved from the row, not a client-supplied org id)'
@@ -242,7 +266,7 @@ select ok(
   pg_temp.expect_error_message(
     format(
       $$ select public.approve_ai_recommendation('%s'::uuid, 1) $$,
-      (select id from public.ai_approvals where organization_id = '00000000-0000-0000-0000-000000000001')
+      (select id from ai_test_ids where key = 'bossa_assign_lead_owner_approval')
     )
   ) like 'PERMISSION_DENIED:%',
   'BOSSA staff (no ai.actions.approve) cannot approve BOSSA''s own pending approval'
@@ -275,8 +299,13 @@ select ok(
 -- recommendation and its approval for a fresh decision (issue #18 decision
 -- #5's tamper/staleness guarantee). Attempting to execute the reopened
 -- recommendation is refused: it no longer has a current approval at all.
+-- Uses its own rule_version (not 'seed-fixture.v1') — step 4's expiry pass
+-- is scoped by rule_version specifically so a partial re-evaluation like
+-- this one (only re-sending the assign_lead_owner recommendation) can't
+-- accidentally expire BOSSA's other seed-fixture.v1 recommendation
+-- (revenue_below_target), which this call's intents don't mention at all.
 select public.apply_ai_evaluation(
-  '00000000-0000-0000-0000-000000000001'::uuid, null, '2026-07-20T17:00:00Z'::timestamptz, 'seed-fixture.v1',
+  '00000000-0000-0000-0000-000000000001'::uuid, null, '2026-07-20T17:00:00Z'::timestamptz, 'reopen-test.v1',
   format(
     '{"signals":[],"recommendations":[{"dedupe_key":"assign_lead_owner:00000000-0000-0000-0004-000000000001","recommendation_type":"unanswered_lead_followup","title":"Follow up with Maria Fernandez","executive_summary":"Updated","severity":"warning","recommended_action_type":"assign_lead_owner","recommended_action_payload":{"leadId":"00000000-0000-0000-0004-000000000001","ownerUserId":"%s"},"rule_id":"unanswered_leads.v1","requires_approval":true,"evidence":[]}]}',
     '00000000-0000-0000-0002-000000000002'
@@ -430,7 +459,7 @@ select ok(
   pg_temp.expect_error_message(
     format(
       $$ select public.dismiss_ai_recommendation('%s'::uuid) $$,
-      (select id from public.ai_recommendations where organization_id = '00000000-0000-0000-0000-000000000001' and recommended_action_type = 'navigate' limit 1)
+      (select id from ai_test_ids where key = 'bossa_navigate_recommendation')
     )
   ) like 'PERMISSION_DENIED:%',
   'Papai owner cannot dismiss a BOSSA recommendation (resolved from the row, cross-tenant denied)'
@@ -440,7 +469,7 @@ select ok(
   pg_temp.expect_error_message(
     format(
       $$ select public.dismiss_ai_recommendation('%s'::uuid) $$,
-      (select id from public.ai_recommendations where organization_id = '00000000-0000-0000-0000-000000000001' and recommended_action_type = 'navigate' limit 1)
+      (select id from ai_test_ids where key = 'bossa_navigate_recommendation')
     )
   ) like 'PERMISSION_DENIED:%',
   'BOSSA staff (no ai.recommendations.manage) cannot dismiss a BOSSA recommendation'
