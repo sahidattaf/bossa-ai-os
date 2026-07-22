@@ -72,18 +72,19 @@ select throws_ok(
 
 -- 5: cross-tenant UPDATE is a no-op (the target row is invisible under RLS,
 -- not merely rejected) — verify zero rows changed by re-reading as the
--- Papai owner afterward.
+-- Papai owner afterward. (A data-modifying WITH must be the top-level
+-- statement in Postgres, so this can't be nested as a scalar argument to
+-- is() the way the read-only checks above are — the WITH...UPDATE is the
+-- outer query here, with is() called once per its (zero-or-one) output row.)
+with attempted as (
+  update public.organization_settings
+  set ai_manager_name = 'Hijacked'
+  where organization_id = '00000000-0000-0000-0000-000000000002'
+  returning organization_id
+)
 select is(
-  (with attempted as (
-     update public.organization_settings
-     set ai_manager_name = 'Hijacked'
-     where organization_id = '00000000-0000-0000-0000-000000000002'
-     returning organization_id
-   )
-   select count(*)::int from attempted),
-  0,
-  'BOSSA owner cross-tenant UPDATE on Papai settings affects zero rows'
-);
+  count(*)::int, 0, 'BOSSA owner cross-tenant UPDATE on Papai settings affects zero rows'
+) from attempted;
 
 select pg_temp.authenticate_as('00000000-0000-0000-0002-000000000003');
 select isnt(
@@ -94,16 +95,14 @@ select isnt(
 
 -- 6: cross-tenant DELETE is likewise a no-op.
 select pg_temp.authenticate_as('00000000-0000-0000-0002-000000000001');
+with attempted as (
+  delete from public.locations
+  where organization_id = '00000000-0000-0000-0000-000000000002'
+  returning id
+)
 select is(
-  (with attempted as (
-     delete from public.locations
-     where organization_id = '00000000-0000-0000-0000-000000000002'
-     returning id
-   )
-   select count(*)::int from attempted),
-  0,
-  'BOSSA owner cross-tenant DELETE on Papai locations affects zero rows'
-);
+  count(*)::int, 0, 'BOSSA owner cross-tenant DELETE on Papai locations affects zero rows'
+) from attempted;
 
 -- 7-9: permission grants behave as seeded — owner has broad access, staff
 -- has the narrow set from the role catalog.
