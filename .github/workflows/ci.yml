@@ -71,10 +71,9 @@ jobs:
         run: |
           npm run supabase:types
           npm run typecheck
-          if ! git diff --quiet -- lib/supabase/database.types.ts; then
-            echo "::warning::Committed lib/supabase/database.types.ts differs from freshly generated output (see diff below). The app still typechecks against the real schema, so this is informational, not a failure — regenerate and commit if the diff looks meaningful."
-            git diff -- lib/supabase/database.types.ts
-          fi
+
+      - name: Fail if generated database types drift from what's committed
+        run: git diff --exit-code -- lib/supabase/database.types.ts
 
       - name: Run integration tests against the local instance
         run: |
