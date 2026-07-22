@@ -386,7 +386,11 @@ export interface Database {
           item_sku: string | null;
           quantity: number;
           unit_price: number;
-          line_total: number;
+          // Nullable even though the column has `not null` behavior in
+          // practice (it's a STORED GENERATED column, always computed) —
+          // the real generator types every GENERATED column as nullable
+          // regardless of the underlying expression's own nullability.
+          line_total: number | null;
           metadata: Json;
           created_at: string;
         };
@@ -482,7 +486,7 @@ export interface Database {
         Returns: string[];
       };
       calculate_daily_kpi_snapshot: {
-        Args: { p_organization_id: string; p_snapshot_date?: string; p_location_id?: string | null };
+        Args: { p_organization_id: string; p_snapshot_date?: string; p_location_id?: string };
         Returns: Database["public"]["Tables"]["daily_kpi_snapshots"]["Row"];
       };
       get_dashboard_snapshot: {

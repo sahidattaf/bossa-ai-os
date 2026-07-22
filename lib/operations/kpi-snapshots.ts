@@ -28,7 +28,10 @@ export async function generateDailyKpiSnapshot(
   const { data, error } = await supabase.rpc("calculate_daily_kpi_snapshot", {
     p_organization_id: organizationId,
     p_snapshot_date: toDateString(options?.date ?? new Date()),
-    p_location_id: options?.locationId ?? null,
+    // Org-wide rollup (the SQL function's own default) is expressed by
+    // omitting the arg entirely — the generated RPC arg type only allows
+    // `string | undefined`, not `null`, for this optional parameter.
+    p_location_id: options?.locationId ?? undefined,
   });
 
   if (error) throw toOperationalError(error);

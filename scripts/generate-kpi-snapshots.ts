@@ -56,7 +56,9 @@ async function main() {
     const { data, error } = await supabase.rpc("calculate_daily_kpi_snapshot", {
       p_organization_id: organization.id,
       p_snapshot_date: snapshotDate,
-      p_location_id: null,
+      // Omitted (org-wide rollup, the SQL function's own default) rather
+      // than null — the generated RPC arg type only allows
+      // `string | undefined` for this optional parameter.
     });
 
     if (error) {

@@ -153,7 +153,7 @@ export default async function OrderDetailPage({
                 <td className="px-4 py-3 font-medium text-foreground">{item.item_name}</td>
                 <td className="px-4 py-3 text-muted-foreground">{item.quantity}</td>
                 <td className="px-4 py-3 text-muted-foreground">{item.unit_price.toFixed(2)}</td>
-                <td className="px-4 py-3 text-muted-foreground">{item.line_total.toFixed(2)}</td>
+                <td className="px-4 py-3 text-muted-foreground">{(item.line_total ?? 0).toFixed(2)}</td>
                 {canWrite ? (
                   <td className="px-4 py-3">
                     <RemoveItemButton organizationSlug={organizationSlug} orderId={order.id} orderItemId={item.id} />
