@@ -21,7 +21,8 @@
     "supabase:reset": "supabase db reset",
     "supabase:test": "supabase test db",
     "supabase:types": "supabase gen types typescript --local > lib/supabase/database.types.ts",
-    "test:integration": "vitest run --config vitest.integration.config.ts"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "kpi:generate": "tsx scripts/generate-kpi-snapshots.ts"
   },
   "dependencies": {
     "next": "15.5.20",
@@ -63,6 +64,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/user-event": "^14.5.2",
     "jsdom": "^25.0.1",
-    "@playwright/test": "^1.49.1"
+    "@playwright/test": "^1.49.1",
+    "tsx": "^4.19.2"
   }
 }
