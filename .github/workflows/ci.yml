@@ -65,7 +65,32 @@ jobs:
         run: supabase db reset
 
       - name: Run pgTAP cross-tenant security tests
-        run: supabase test db
+        id: pgtap
+        shell: bash
+        run: |
+          set +e
+          supabase test db > /tmp/pgtap.log 2>&1
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo "::group::pgTAP failure summary"
+            grep -nE -B 8 -A 14 "not ok|FAILED|ERROR|error:|Dubious|Looks like|planned|tests failed" /tmp/pgtap.log || tail -n 200 /tmp/pgtap.log
+            echo "::endgroup::"
+          else
+            tail -n 100 /tmp/pgtap.log
+          fi
+
+          exit "$status"
+
+      - name: Upload complete pgTAP log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pgtap-log
+          path: /tmp/pgtap.log
+          retention-days: 14
+          if-no-files-found: warn
 
       - name: Regenerate database types from the real schema and verify they still typecheck
         run: |
