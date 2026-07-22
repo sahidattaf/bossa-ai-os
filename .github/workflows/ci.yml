@@ -97,6 +97,15 @@ jobs:
           npm run supabase:types
           npm run typecheck
 
+      - name: Upload generated database types
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-database-types
+          path: lib/supabase/database.types.ts
+          retention-days: 14
+          if-no-files-found: error
+
       - name: Fail if generated database types drift from what's committed
         run: git diff --exit-code -- lib/supabase/database.types.ts
 
