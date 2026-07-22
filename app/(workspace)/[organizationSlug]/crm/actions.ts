@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { isOperationalError } from "@/lib/errors";
 import { getDashboardProviderMode } from "@/lib/dashboard/get-data-provider";
-import { createLead, updateLeadStatus } from "@/lib/operations";
+import { convertLeadToOrder, convertLeadToReservation, createLead, updateLeadStatus } from "@/lib/operations";
 import { createClient } from "@/lib/supabase/server";
 import { resolveTenantForCurrentUser } from "@/lib/tenancy/supabase-tenants";
 
@@ -25,6 +25,20 @@ async function resolveOrganizationId(organizationSlug: string): Promise<string> 
     throw new Error("You don't have access to this organization.");
   }
   return access.tenant.id;
+}
+
+/**
+ * A lead conversion changes what the CRM list shows (status), what the
+ * reservations/orders lists show (a brand-new row), and the live dashboard's
+ * aggregates (new_leads_today/unanswered_leads, orders_today,
+ * reservations_tonight) — all four routes are revalidated together rather
+ * than trying to predict exactly which one the new record affects.
+ */
+function revalidateOperationalRoutes(organizationSlug: string): void {
+  revalidatePath(`/${organizationSlug}/crm`);
+  revalidatePath(`/${organizationSlug}/reservations`);
+  revalidatePath(`/${organizationSlug}/orders`);
+  revalidatePath(`/${organizationSlug}/dashboard`);
 }
 
 export async function createLeadAction(
@@ -73,6 +87,77 @@ export async function updateLeadStatusAction(
     await updateLeadStatus(supabase, organizationId, leadId, status);
 
     revalidatePath(`/${organizationSlug}/crm`);
+    return initialState;
+  } catch (error) {
+    if (isOperationalError(error)) {
+      return { error: error.message };
+    }
+    return { error: error instanceof Error ? error.message : "Something went wrong." };
+  }
+}
+
+export async function convertLeadToReservationAction(
+  _prevState: LeadActionState,
+  formData: FormData,
+): Promise<LeadActionState> {
+  try {
+    const organizationSlug = String(formData.get("organizationSlug") ?? "");
+    const leadId = String(formData.get("leadId") ?? "");
+    const organizationId = await resolveOrganizationId(organizationSlug);
+    const supabase = await createClient();
+
+    const reservationDate = String(formData.get("reservationDate") ?? "");
+    const reservationTime = String(formData.get("reservationTime") ?? "");
+
+    await convertLeadToReservation(supabase, organizationId, leadId, {
+      locationId: formData.get("locationId"),
+      guestName: formData.get("guestName"),
+      phone: formData.get("phone"),
+      partySize: Number(formData.get("partySize")),
+      reservationAt:
+        reservationDate && reservationTime
+          ? new Date(`${reservationDate}T${reservationTime}:00Z`).toISOString()
+          : undefined,
+      source: formData.get("source"),
+    });
+
+    revalidateOperationalRoutes(organizationSlug);
+    return initialState;
+  } catch (error) {
+    if (isOperationalError(error)) {
+      return { error: error.message };
+    }
+    return { error: error instanceof Error ? error.message : "Something went wrong." };
+  }
+}
+
+export async function convertLeadToOrderAction(
+  _prevState: LeadActionState,
+  formData: FormData,
+): Promise<LeadActionState> {
+  try {
+    const organizationSlug = String(formData.get("organizationSlug") ?? "");
+    const leadId = String(formData.get("leadId") ?? "");
+    const organizationId = await resolveOrganizationId(organizationSlug);
+    const supabase = await createClient();
+
+    await convertLeadToOrder(supabase, organizationId, leadId, {
+      locationId: formData.get("locationId"),
+      orderNumber: formData.get("orderNumber"),
+      channel: formData.get("channel"),
+      fulfillmentType: formData.get("fulfillmentType"),
+      customerName: formData.get("customerName"),
+      phone: formData.get("phone") || null,
+      items: [
+        {
+          itemName: formData.get("itemName"),
+          quantity: Number(formData.get("quantity")),
+          unitPrice: Number(formData.get("unitPrice")),
+        },
+      ],
+    });
+
+    revalidateOperationalRoutes(organizationSlug);
     return initialState;
   } catch (error) {
     if (isOperationalError(error)) {

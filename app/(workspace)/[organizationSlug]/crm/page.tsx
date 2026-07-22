@@ -2,6 +2,7 @@ import { Users } from "lucide-react";
 
 import { StatusBadge } from "@/components/operations/status-badge";
 import { InlineStatusForm } from "@/components/operations/inline-status-form";
+import { LeadConversionActions } from "@/components/operations/lead-conversion-actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -10,6 +11,7 @@ import { PermissionState } from "@/components/ui/permission-state";
 import { hasPermission } from "@/lib/widgets/permissions";
 import { listLeads } from "@/lib/operations/leads";
 import { getMockLeads } from "@/lib/operations/mock-fixtures";
+import { isLeadConvertible } from "@/lib/operations/conversions";
 import { LEAD_STATUSES } from "@/lib/operations/status";
 import { resolveWorkspacePageContext } from "@/lib/tenancy/page-context";
 import { toOperationalError } from "@/lib/errors";
@@ -38,6 +40,8 @@ export default async function CrmPage({
   }
 
   const canWrite = hasPermission(context.permissions, "crm.write");
+  const canConvertToReservation = canWrite && hasPermission(context.permissions, "reservations.write");
+  const canConvertToOrder = canWrite && hasPermission(context.permissions, "orders.write");
 
   interface LeadDisplayRow {
     id: string;
@@ -50,6 +54,7 @@ export default async function CrmPage({
 
   let leads: LeadDisplayRow[] = [];
   let loadError: string | null = null;
+  let locations: { id: string; name: string }[] = [];
 
   if (context.mode === "mock") {
     leads = getMockLeads(context.tenant.id).map((lead) => ({
@@ -62,7 +67,10 @@ export default async function CrmPage({
     }));
   } else {
     try {
-      const rows = await listLeads(context.supabase, context.tenant.id, { status: statusFilter });
+      const [rows, { data: locationRows }] = await Promise.all([
+        listLeads(context.supabase, context.tenant.id, { status: statusFilter }),
+        context.supabase.from("locations").select("id, name").eq("organization_id", context.tenant.id),
+      ]);
       leads = rows.map((row) => ({
         id: row.id,
         contactName: row.contact_name,
@@ -71,6 +79,7 @@ export default async function CrmPage({
         source: row.source,
         status: row.status,
       }));
+      locations = locationRows ?? [];
     } catch (error) {
       loadError = toOperationalError(error as never).message;
     }
@@ -128,6 +137,9 @@ export default async function CrmPage({
                 <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">Source</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                {context.mode === "supabase" && (canConvertToReservation || canConvertToOrder) ? (
+                  <th className="px-4 py-3 font-medium">Convert</th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -151,6 +163,20 @@ export default async function CrmPage({
                       <StatusBadge status={lead.status} />
                     )}
                   </td>
+                  {context.mode === "supabase" && (canConvertToReservation || canConvertToOrder) ? (
+                    <td className="px-4 py-3">
+                      <LeadConversionActions
+                        organizationSlug={organizationSlug}
+                        leadId={lead.id}
+                        leadStatus={lead.status}
+                        contactName={lead.contactName}
+                        phone={lead.phone}
+                        canConvertToReservation={canConvertToReservation && isLeadConvertible(lead.status)}
+                        canConvertToOrder={canConvertToOrder && isLeadConvertible(lead.status)}
+                        locations={locations}
+                      />
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>

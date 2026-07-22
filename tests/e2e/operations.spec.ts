@@ -21,6 +21,12 @@ test.describe("CRM module (mock mode)", () => {
     await expect(page.getByText("Demo Guest — Ronnie S.")).toBeVisible();
     await expect(page.getByText("Demo Guest — Maria F.")).toHaveCount(0);
   });
+
+  test("never shows lead-conversion actions in the read-only mock demo", async ({ page }) => {
+    await page.goto("/bossa/crm");
+    await expect(page.getByRole("button", { name: "Convert to reservation" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Convert to order" })).toHaveCount(0);
+  });
 });
 
 test.describe("Reservations module (mock mode)", () => {
