@@ -59,6 +59,8 @@ This is a **deliberate, narrow exception** to "access comes from membership," re
 
 Every tenant-owned table has `organization_id`, and every table below has **RLS enabled and forced**.
 
+RLS restricts *which rows* a role can see or change; it does not by itself grant permission to query the table at all — Postgres checks ordinary `GRANT`s first. `20260721230008_table_grants.sql` grants `authenticated` exactly the operations each table's policies below actually allow (nothing more), and grants `anon` nothing anywhere. This was found missing by the CI `database` job running against a real, freshly-reset database — every query failed with "permission denied for table X" until it was added.
+
 | Table | SELECT | INSERT / UPDATE / DELETE |
 | --- | --- | --- |
 | `organizations` | `is_org_member(id)` | none for `authenticated` — provisioning is service-role only in Phase 2 |

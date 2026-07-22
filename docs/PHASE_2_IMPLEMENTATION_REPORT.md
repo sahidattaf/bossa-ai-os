@@ -52,6 +52,7 @@ Enabled and forced on every table. Two `SECURITY DEFINER` functions (`is_org_mem
 | `20260721230005_audit_logs.sql` | `audit_logs`, `record_audit_event` |
 | `20260721230006_rls_policies.sql` | RLS enabled + forced + every policy, on every table |
 | `20260721230007_tenant_resolution_functions.sql` | `get_organization_summary`, `get_my_permissions`, `get_my_role_names` |
+| `20260721230008_table_grants.sql` | Base `GRANT`s to `authenticated` — found missing by the real CI run (see "Risks and decisions") |
 
 Legacy static-dashboard's single-tenant Supabase SQL relocated to `legacy/static-dashboard/supabase/` (non-destructive, same pattern as Phase 1's `src/` move — those files are unrelated to this schema).
 
@@ -75,6 +76,7 @@ CI `database` job (`supabase start` → `supabase db reset` → `supabase test d
 3. **No real Supabase cloud project was touched.** The team has paused (`INACTIVE`) projects reachable via the connected Supabase MCP tools; restoring or creating one has cost/account implications outside this PR's scope, so Phase 2 ships fully local/CI-validated, with linking a real project documented as a manual next step.
 4. **`database.types.ts` is hand-authored**, not generated (no Docker locally). CI regenerates it from the real schema and re-typechecks the app against that — a much stronger check than a textual diff — documented in `docs/SUPABASE_OPERATIONS.md`.
 5. **Two real dependency bugs found and fixed while integrating**: `@supabase/ssr@0.5.2` was incompatible with the installed `@supabase/supabase-js@2.110.x`'s `SupabaseClient` generic signature (bumped to `^0.12.3`); the hand-authored `Database` type was missing the `__InternalSupabase.PostgrestVersion` marker and each table's `Relationships` field, both required by `postgrest-js`'s type constraints — without them every typed query silently widened to `never`.
+6. **Two real bugs found only by the CI `database` job, not locally** (no Docker in this sandbox — exactly what that job is for): `supabase/config.toml` had `enable_confirmations` duplicated under the top-level `[auth]` table, where it isn't a valid key (only `[auth.email]` accepts it) — `supabase start` refused to boot at all. Separately, RLS policies alone weren't enough: Postgres checks ordinary table `GRANT`s before RLS is ever evaluated, and this project's local instance doesn't pre-grant new tables to `authenticated` — every query failed with "permission denied for table X" until `20260721230008_table_grants.sql` added explicit, least-privilege grants. Both are fixed; see that migration's comment for the reasoning.
 
 ## Phase 3 readiness
 
