@@ -280,7 +280,6 @@ select public.apply_ai_evaluation(
             "metric_name": "revenue_today",
             "observed_value": {"amount": 67.50, "currency": "USD"},
             "expected_value": {"target": 200.00, "currency": "USD"},
-            "source_entity_type": "daily_kpi_snapshot",
             "calculation_definition": "daily_kpi_snapshots.revenue for snapshot_date = today",
             "is_finance_sensitive": true
           }
