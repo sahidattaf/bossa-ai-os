@@ -6,12 +6,17 @@ import {
   assertProjectRefMatches,
   buildExportManifest,
   buildManifestEntry,
+  buildRunId,
+  computeDataChecksum,
+  datasetsMatch,
   describeExportPlan,
   extractProjectRefFromUrl,
   LEGACY_PROJECT_SPECS,
   parseArgs,
+  requiredDatasetsFor,
   safeJoin,
   sha256Hex,
+  stableStringify,
   validateTableCompleteness,
 } from "@/scripts/lib/legacy-export-plan";
 
@@ -31,6 +36,11 @@ describe("legacy-export-plan (pure logic only — no Supabase I/O, no real data)
         tables: ["bossa_leads"],
         includeAuthIdentities: false,
       });
+    });
+
+    it("requiredDatasetsFor includes auth-identities only when the project has real auth users to export", () => {
+      expect(requiredDatasetsFor("bossa-ai-os")).toEqual(["campaigns", "weekly_briefs", "kpi_daily", "decision_log", "auth-identities"]);
+      expect(requiredDatasetsFor("bossa-asado-i-mar")).toEqual(["bossa_leads"]);
     });
 
     it("parseArgs only accepts a recognized --project value, never an arbitrary string", () => {
@@ -93,47 +103,27 @@ describe("legacy-export-plan (pure logic only — no Supabase I/O, no real data)
     it("sha256Hex produces a 64-character lowercase hex digest", () => {
       expect(sha256Hex("synthetic-test-content")).toMatch(/^[0-9a-f]{64}$/);
     });
-  });
 
-  describe("manifest generation", () => {
-    it("buildManifestEntry fills in a default pending-reconciliation destination when none is given", () => {
-      const entry = buildManifestEntry({
-        sourceProjectRef: "synthetic-ref",
-        table: "synthetic_table",
-        exportedAt: "2026-01-01T00:00:00.000Z",
-        rowCount: 3,
-        checksumSha256: "deadbeef",
-      });
-      expect(entry.destinationDecision).toMatch(/pending reconciliation/i);
+    it("stableStringify produces identical output regardless of object key insertion order", () => {
+      const a = { id: 1, name: "synthetic", nested: { z: 1, a: 2 } };
+      const b = { nested: { a: 2, z: 1 }, name: "synthetic", id: 1 };
+      expect(stableStringify(a)).toBe(stableStringify(b));
     });
 
-    it("buildManifestEntry preserves an explicitly given destination decision", () => {
-      const entry = buildManifestEntry({
-        sourceProjectRef: "synthetic-ref",
-        table: "synthetic_table",
-        exportedAt: "2026-01-01T00:00:00.000Z",
-        rowCount: 3,
-        checksumSha256: "deadbeef",
-        destinationDecision: "reconciled into public.leads on 2026-02-01",
-      });
-      expect(entry.destinationDecision).toBe("reconciled into public.leads on 2026-02-01");
+    it("stableStringify sorts keys within array elements too", () => {
+      const rows1 = [{ b: 2, a: 1 }];
+      const rows2 = [{ a: 1, b: 2 }];
+      expect(stableStringify(rows1)).toBe(stableStringify(rows2));
     });
 
-    it("buildManifestEntry records every required field: source ref, table, timestamp, row count, checksum", () => {
-      const entry = buildManifestEntry({
-        sourceProjectRef: "synthetic-ref",
-        table: "synthetic_table",
-        exportedAt: "2026-01-01T00:00:00.000Z",
-        rowCount: 8,
-        checksumSha256: "deadbeef",
-      });
-      expect(entry).toMatchObject({
-        sourceProjectRef: "synthetic-ref",
-        table: "synthetic_table",
-        exportedAt: "2026-01-01T00:00:00.000Z",
-        rowCount: 8,
-        checksumSha256: "deadbeef",
-      });
+    it("computeDataChecksum is identical for the same rows regardless of key order", () => {
+      const rows1 = [{ id: 1, value: "x" }];
+      const rows2 = [{ value: "x", id: 1 }];
+      expect(computeDataChecksum(rows1)).toBe(computeDataChecksum(rows2));
+    });
+
+    it("computeDataChecksum differs when the actual row content differs", () => {
+      expect(computeDataChecksum([{ id: 1 }])).not.toBe(computeDataChecksum([{ id: 2 }]));
     });
 
     it("extractProjectRefFromUrl parses the ref out of a real-shaped Supabase URL", () => {
@@ -146,15 +136,84 @@ describe("legacy-export-plan (pure logic only — no Supabase I/O, no real data)
     });
   });
 
-  describe("buildExportManifest status", () => {
-    it("is 'completed' only when there are zero failures", () => {
+  describe("buildRunId", () => {
+    it("combines a compact UTC timestamp with the given random id", () => {
+      const runId = buildRunId(new Date("2026-07-23T15:30:00.123Z"), "synthetic-uuid-0000");
+      expect(runId).toBe("20260723T153000Z-synthetic-uuid-0000");
+    });
+
+    it("produces different ids for different timestamps given the same random id", () => {
+      const a = buildRunId(new Date("2026-07-23T15:30:00.000Z"), "same-uuid");
+      const b = buildRunId(new Date("2026-07-23T15:30:01.000Z"), "same-uuid");
+      expect(a).not.toBe(b);
+    });
+  });
+
+  describe("datasetsMatch", () => {
+    it("is true for the same sets regardless of order", () => {
+      expect(datasetsMatch(["a", "b", "c"], ["c", "a", "b"])).toBe(true);
+    });
+
+    it("is false when a required dataset is missing", () => {
+      expect(datasetsMatch(["a", "b", "c"], ["a", "b"])).toBe(false);
+    });
+
+    it("is false when there's an extra, unrequested dataset", () => {
+      expect(datasetsMatch(["a", "b"], ["a", "b", "c"])).toBe(false);
+    });
+
+    it("is true for two empty arrays", () => {
+      expect(datasetsMatch([], [])).toBe(true);
+    });
+  });
+
+  describe("manifest generation", () => {
+    it("buildManifestEntry fills in a default pending-reconciliation destination when none is given", () => {
+      const entry = buildManifestEntry({
+        dataset: "synthetic_table",
+        rowCount: 3,
+        dataChecksumSha256: "abc",
+        fileChecksumSha256: "def",
+      });
+      expect(entry.destinationDecision).toMatch(/pending reconciliation/i);
+    });
+
+    it("buildManifestEntry preserves an explicitly given destination decision", () => {
+      const entry = buildManifestEntry({
+        dataset: "synthetic_table",
+        rowCount: 3,
+        dataChecksumSha256: "abc",
+        fileChecksumSha256: "def",
+        destinationDecision: "reconciled into public.leads on 2026-02-01",
+      });
+      expect(entry.destinationDecision).toBe("reconciled into public.leads on 2026-02-01");
+    });
+
+    it("buildManifestEntry records every required field", () => {
+      const entry = buildManifestEntry({
+        dataset: "synthetic_table",
+        rowCount: 8,
+        dataChecksumSha256: "abc",
+        fileChecksumSha256: "def",
+      });
+      expect(entry).toMatchObject({ dataset: "synthetic_table", rowCount: 8, dataChecksumSha256: "abc", fileChecksumSha256: "def" });
+    });
+  });
+
+  describe("buildExportManifest completeness rule", () => {
+    const baseParams = {
+      runId: "20260101T000000Z-synthetic",
+      project: "bossa-ai-os" as const,
+      sourceProjectRef: "oqmftkttkfktyzefswpz",
+      generatedAt: "2026-01-01T00:00:00.000Z",
+    };
+
+    it("is 'completed' only when there are zero failures and completedDatasets exactly matches requiredDatasets", () => {
       const manifest = buildExportManifest({
-        project: "bossa-ai-os",
-        sourceProjectRef: "oqmftkttkfktyzefswpz",
-        generatedAt: "2026-01-01T00:00:00.000Z",
-        entries: [
-          buildManifestEntry({ sourceProjectRef: "oqmftkttkfktyzefswpz", table: "campaigns", exportedAt: "2026-01-01T00:00:00.000Z", rowCount: 3, checksumSha256: "abc" }),
-        ],
+        ...baseParams,
+        requiredDatasets: ["campaigns", "weekly_briefs"],
+        completedDatasets: ["weekly_briefs", "campaigns"],
+        entries: [buildManifestEntry({ dataset: "campaigns", rowCount: 3, dataChecksumSha256: "a", fileChecksumSha256: "b" })],
         failures: [],
       });
       expect(manifest.status).toBe("completed");
@@ -162,27 +221,51 @@ describe("legacy-export-plan (pure logic only — no Supabase I/O, no real data)
 
     it("is 'failed' when even one dataset failed, regardless of how many succeeded", () => {
       const manifest = buildExportManifest({
-        project: "bossa-ai-os",
-        sourceProjectRef: "oqmftkttkfktyzefswpz",
-        generatedAt: "2026-01-01T00:00:00.000Z",
-        entries: [
-          buildManifestEntry({ sourceProjectRef: "oqmftkttkfktyzefswpz", table: "campaigns", exportedAt: "2026-01-01T00:00:00.000Z", rowCount: 3, checksumSha256: "abc" }),
-        ],
-        failures: [{ table: "kpi_daily", error: "synthetic row-count mismatch" }],
+        ...baseParams,
+        requiredDatasets: ["campaigns", "kpi_daily"],
+        completedDatasets: ["campaigns"],
+        entries: [buildManifestEntry({ dataset: "campaigns", rowCount: 3, dataChecksumSha256: "a", fileChecksumSha256: "b" })],
+        failures: [{ dataset: "kpi_daily", error: "synthetic row-count mismatch" }],
       });
       expect(manifest.status).toBe("failed");
     });
 
     it("is 'failed' with zero successful entries when every dataset fails", () => {
       const manifest = buildExportManifest({
+        ...baseParams,
         project: "bossa-asado-i-mar",
         sourceProjectRef: "zgfncoexiqnqeqaxpqdy",
-        generatedAt: "2026-01-01T00:00:00.000Z",
+        requiredDatasets: ["bossa_leads"],
+        completedDatasets: [],
         entries: [],
-        failures: [{ table: "bossa_leads", error: "synthetic failure" }],
+        failures: [{ dataset: "bossa_leads", error: "synthetic failure" }],
       });
       expect(manifest.status).toBe("failed");
       expect(manifest.entries).toHaveLength(0);
+    });
+
+    it("is 'failed' when completedDatasets has an unexpected dataset not in requiredDatasets, even with zero explicit failures", () => {
+      const manifest = buildExportManifest({
+        ...baseParams,
+        requiredDatasets: ["campaigns"],
+        completedDatasets: ["campaigns", "an_unexpected_extra_dataset"],
+        entries: [],
+        failures: [],
+      });
+      expect(manifest.status).toBe("failed");
+    });
+
+    it("carries runId, requiredDatasets, and completedDatasets through unchanged", () => {
+      const manifest = buildExportManifest({
+        ...baseParams,
+        requiredDatasets: ["campaigns", "kpi_daily"],
+        completedDatasets: ["campaigns", "kpi_daily"],
+        entries: [],
+        failures: [],
+      });
+      expect(manifest.runId).toBe(baseParams.runId);
+      expect(manifest.requiredDatasets).toEqual(["campaigns", "kpi_daily"]);
+      expect(manifest.completedDatasets).toEqual(["campaigns", "kpi_daily"]);
     });
   });
 

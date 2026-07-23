@@ -5,7 +5,7 @@
 -- `bossa-ai-os` project's remote migration-history table — this file exists
 -- only so the LOCAL migration list matches what remote already reports,
 -- avoiding a false "missing migration" gap and the false claim that
--- `supabase db push` would simply append this repository's 33 migrations
+-- `supabase db push` would simply append this repository's 31 migrations
 -- to an empty history. It does not represent this repository's schema in
 -- any way and must never be edited to add real DDL/DML — see
 -- docs/PRODUCTION_DEPLOYMENT.md § "Migration history alignment" for the
