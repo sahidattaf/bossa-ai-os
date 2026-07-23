@@ -37,11 +37,13 @@ Row counts must be re-verified at actual export time (data may have changed sinc
 
 ## `Bossa Asado i Mar` (project ref `zgfncoexiqnqeqaxpqdy`)
 
+**Revision note:** an earlier version of this plan assumed `bossa_leads` held real customer contact data (`contact_name`/`phone`/`email`) and proposed migrating it into `public.leads`. A live schema inspection found this assumption wrong: `bossa_leads` has **no contact-detail columns at all**. All 8 rows are CTA (call-to-action) attribution/click events — `lead_type = weekend_fire_order`, `lead_status = "WhatsApp Clicked"`, `order_status = "Requested"`, with a `metadata` object carrying `cta_label`/`cta_source` keys. This is marketing-funnel telemetry, not lead contact records, and the destination decision below has been corrected accordingly.
+
 | Dataset | Source table | Verified row count (audit) | Manifest/checksum status | Intended destination / archive decision | Required transformation | Conflict policy | Owner approval required | Reconciliation status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Legacy BOSSA leads | `bossa_leads` | 8 | Not yet generated | **Migrate** into this repository's `public.leads` table, scoped to the real BOSSA organization, after review | Column-level mapping from `bossa_leads`'s actual schema to `leads`'s columns (`organization_id`, `lead_type`, `source`, `contact_name`, `phone`/`email`, `status`, `owner_user_id`) — **not yet possible to fully specify**: only the table name and row count have been verified so far, not its column shape. Capturing `bossa_leads`'s column metadata is itself a precondition of writing the exact mapping (see collision-cleanup plan's note on schema-metadata capture) | Additive merge only: if a `leads` row already matches on contact/phone, the existing `leads` row wins; legacy data is never used to overwrite a real row created after cutover | Yes — this is real customer contact data being merged into the live tenant system | Not started |
+| Legacy CTA/conversion attribution events | `bossa_leads` (verified columns: `lead_type`, `lead_status`, `order_status`, `metadata` with `cta_label`/`cta_source` keys — **no** `contact_name`, `phone`, or `email` column exists) | 8 | Not yet generated | **Do not migrate into `public.leads`** — this repository's `leads` table requires `contact_name` and `phone`, neither of which this data has, and none may ever be fabricated to force a fit. **Archive as historical CTA/conversion-event data.** Reserve a possible future destination in a purpose-built `marketing_attribution_events` or `website_conversion_events` table (unbuilt Lane B scope) that models attribution events on their own terms, not as a lead | None planned until a Lane B attribution/conversion-tracking table is designed with a matching shape (event type, CTA label/source, timestamp — no contact fields required) | Not applicable — no destination table yet, and `public.leads` is explicitly the wrong target | Yes — confirm this archival decision before any future attribution table's design assumes this data as a source | Not started |
 
-Once reconciled, `Bossa Asado i Mar` remains read-only indefinitely (per D1) — it is a source, never a second backend, and is never decommissioned or written to as part of this plan.
+Once reconciled (archived), `Bossa Asado i Mar` remains read-only indefinitely (per D1) — it is a source, never a second backend, and is never decommissioned or written to as part of this plan. **No fake contact details are ever synthesized** to force this data into `public.leads`'s shape — if a future attribution/conversion table is never built, this data simply stays archived, which is an acceptable outcome, unlike inventing customer data.
 
 ---
 
@@ -49,7 +51,6 @@ Once reconciled, `Bossa Asado i Mar` remains read-only indefinitely (per D1) —
 
 1. The real `--confirm` export run for both projects (`docs/PRODUCTION_DEPLOYMENT.md` § "Legacy export utility"), producing a manifest with a SHA-256 checksum per table.
 2. Independent re-verification: re-query live row counts and recompute each checksum from the exported file, proving both match the manifest — not merely trusting the export run once.
-3. For `bossa_leads` specifically: capture its actual column list (not just its row count) so the transformation mapping above can be made concrete instead of directional.
-4. Sahid's explicit review and sign-off per dataset (the "Owner approval required" column above is `Yes` for every row — none of this is automated).
+3. Sahid's explicit review and sign-off per dataset (the "Owner approval required" column above is `Yes` for every row — none of this is automated).
 
 This document will be updated in place once that happens — it is not re-created per run.

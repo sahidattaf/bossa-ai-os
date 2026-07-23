@@ -10,7 +10,7 @@ Phase 4.5 / 3B Lane A (issue #20). This is an audit report, not a runbook — fo
 - The deployed Vercel application presents the BOSSA/Papai tenant selector at `/` regardless of configuration — see "Root page always renders the mock tenant list" below for the repository-level reason.
 - The repository defaults to `mock` mode unless `DASHBOARD_DATA_PROVIDER=supabase` is explicitly set (server-only env var, `lib/dashboard/get-data-provider.ts`).
 - **Both candidate Supabase projects have now been directly inspected, read-only, and are `ACTIVE_HEALTHY`.** Full comparison and the resulting locked decision are in §3 — this is no longer a provisional lean or a pending item.
-- **Neither live project matches the repository's current 33-migration, 25-table Phase 2–4 schema.** Both carry their own, unrelated legacy schema and legacy data that predates this repository's Phase 1–4 work. This is the single most important fact for Lane A: a plain `supabase db push` must not be run against either project as-is (§3, §4).
+- **Neither live project matches the repository's current 31-migration, 25-table Phase 2–4 schema.** Both carry their own, unrelated legacy schema and legacy data that predates this repository's Phase 1–4 work. This is the single most important fact for Lane A: a plain `supabase db push` must not be run against either project as-is (§3, §4).
 
 ---
 
@@ -18,7 +18,7 @@ Phase 4.5 / 3B Lane A (issue #20). This is an audit report, not a runbook — fo
 
 ### Schema and security posture
 
-- 33 migrations (`supabase/migrations/20260721230001_extensions_and_helpers.sql` through `20260725000003_ai_evaluation_scope_validation.sql`), creating 25 tables across Phase 1–4: `platform_admins`, `profiles`, `roles`, `permissions`, `role_permissions`, `organizations`, `locations`, `organization_memberships`, `membership_roles`, `organization_branding`, `organization_settings`, `audit_logs`, `leads`, `reservations`, `orders`, `order_items`, `daily_kpi_snapshots`, `status_transitions`, `ai_rule_configs`, `ai_signals`, `ai_recommendations`, `ai_recommendation_evidence`, `ai_approvals`, `ai_action_attempts`, `ai_outcomes`.
+- 31 migrations (`supabase/migrations/20260721230001_extensions_and_helpers.sql` through `20260725000003_ai_evaluation_scope_validation.sql`), creating 25 tables across Phase 1–4: `platform_admins`, `profiles`, `roles`, `permissions`, `role_permissions`, `organizations`, `locations`, `organization_memberships`, `membership_roles`, `organization_branding`, `organization_settings`, `audit_logs`, `leads`, `reservations`, `orders`, `order_items`, `daily_kpi_snapshots`, `status_transitions`, `ai_rule_configs`, `ai_signals`, `ai_recommendations`, `ai_recommendation_evidence`, `ai_approvals`, `ai_action_attempts`, `ai_outcomes`.
 - Row-Level Security is `enable`d and `force`d on every one of those tables (confirmed directly: `force row level security` appears once per table across the four RLS migration files, with no table found enabled-but-not-forced). This is the repository's core security guarantee and this audit found nothing in Lane A's scope that would weaken it — `docs/SECURITY_MODEL.md` remains accurate.
 - The roles/permissions/role_permissions catalog (8 roles, 18+ permissions) is created **by migration**, not by `seed.sql` (`20260721230002_identity_and_catalog.sql`, `20260723000004_ai_permissions_catalog.sql`). A schema-only `supabase db push` against an empty project fully populates this platform-wide catalog — no separate bootstrap step is needed for it.
 
