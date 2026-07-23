@@ -55,4 +55,28 @@ describe("revenueTargetRule", () => {
     expect(result.recommendations[0]!.requiresApproval).toBe(false);
     expect(result.recommendations[0]!.evidence[0]!.isFinanceSensitive).toBe(true);
   });
+
+  it("never leaks the revenue figure outside the finance-sensitive evidence row", () => {
+    const facts = emptyFacts({
+      today_kpi_snapshot: {
+        id: "snap-1",
+        snapshot_date: "2026-07-20",
+        revenue: 67.5,
+        average_ticket: 33.75,
+        order_count: 2,
+        reservation_count: 1,
+        location_id: null,
+      },
+    });
+
+    const result = revenueTargetRule.evaluate({ facts, config: { dailyTarget: 500 }, organizationId: "org-1", locationId: null, asOf });
+
+    // Signal facts have no finance.read redaction (only
+    // ai_recommendation_evidence rows marked isFinanceSensitive do), so a
+    // signal must never carry the raw figure.
+    expect(JSON.stringify(result.signals[0]!.facts)).not.toContain("67.5");
+    expect(result.recommendations[0]!.title).not.toContain("67.5");
+    expect(result.recommendations[0]!.executiveSummary).not.toContain("67.5");
+    expect(JSON.stringify(result.recommendations[0]!.recommendedActionPayload)).not.toContain("67.5");
+  });
 });

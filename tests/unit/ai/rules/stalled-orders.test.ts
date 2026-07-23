@@ -64,6 +64,39 @@ describe("stalledOrdersRule", () => {
     expect(result.recommendations[0]!.evidence[0]!.isFinanceSensitive).toBe(true);
   });
 
+  it("never leaks the order total outside the finance-sensitive evidence row", () => {
+    const facts = emptyFacts({
+      open_orders: [
+        {
+          id: "o1",
+          order_number: "O-1",
+          status: "completed",
+          payment_status: "unpaid",
+          total: 12345.67,
+          created_at: "2026-07-18T10:00:00Z",
+          updated_at: "2026-07-18T10:00:00Z",
+          location_id: null,
+        },
+      ],
+    });
+
+    const result = stalledOrdersRule.evaluate({
+      facts,
+      config: { maxUnpaidAgeHours: 24 },
+      organizationId: "org-1",
+      locationId: null,
+      asOf,
+    });
+
+    // Signal facts have no finance.read redaction — the total must only
+    // ever appear in the isFinanceSensitive evidence row.
+    expect(JSON.stringify(result.signals[0]!.facts)).not.toContain("12345.67");
+    expect(result.recommendations[0]!.title).not.toContain("12345.67");
+    expect(result.recommendations[0]!.executiveSummary).not.toContain("12345.67");
+    expect(JSON.stringify(result.recommendations[0]!.recommendedActionPayload)).not.toContain("12345.67");
+    expect(result.recommendations[0]!.evidence[0]!.isFinanceSensitive).toBe(true);
+  });
+
   it("ignores orders that are already paid", () => {
     const facts = emptyFacts({
       open_orders: [

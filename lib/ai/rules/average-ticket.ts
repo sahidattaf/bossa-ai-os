@@ -26,7 +26,10 @@ export const averageTicketRule = defineRule<AverageTicketConfig>({
           locationId: locationId ?? undefined,
           severity: "info",
           title: "Average ticket is below target today",
-          facts: { averageTicket: snapshot.average_ticket, target: config.targetAverageTicket },
+          // See revenue-target.ts's identical comment: signal facts have no
+          // finance.read redaction, so the actual figure lives only in this
+          // recommendation's isFinanceSensitive evidence row.
+          facts: { belowTarget: true },
           dedupeKey: `average_ticket_below_target:${locationId ?? "org"}:${dateKey}`,
           sourceEntityType: "daily_kpi_snapshot",
           sourceEntityId: snapshot.id,

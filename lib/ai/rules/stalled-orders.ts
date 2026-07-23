@@ -26,7 +26,10 @@ export const stalledOrdersRule = defineRule<StalledOrdersConfig>({
       locationId: order.location_id ?? locationId ?? undefined,
       severity: "warning" as const,
       title: `Order ${order.order_number} is unpaid after ${config.maxUnpaidAgeHours}h`,
-      facts: { total: order.total, created_at: order.created_at },
+      // Signal facts have no finance.read redaction (unlike
+      // ai_recommendation_evidence) — the order total lives only in this
+      // recommendation's isFinanceSensitive evidence row below.
+      facts: { created_at: order.created_at },
       dedupeKey: `unpaid_order:${order.id}`,
       sourceEntityType: "order" as const,
       sourceEntityId: order.id,
@@ -39,7 +42,10 @@ export const stalledOrdersRule = defineRule<StalledOrdersConfig>({
       locationId: order.location_id ?? undefined,
       recommendationType: "unpaid_order_review",
       title: `Follow up on unpaid order ${order.order_number}`,
-      executiveSummary: `Order ${order.order_number} (${order.total}) has been unpaid for more than ${config.maxUnpaidAgeHours} hours.`,
+      // No order total here — a user with ai.executive.read but not
+      // finance.read must never see it outside the isFinanceSensitive
+      // evidence row below.
+      executiveSummary: `Order ${order.order_number} has been unpaid for more than ${config.maxUnpaidAgeHours} hours.`,
       severity: "warning" as const,
       priorityScore: 65,
       recommendedActionType: "navigate" as const,

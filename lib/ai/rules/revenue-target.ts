@@ -26,7 +26,12 @@ export const revenueTargetRule = defineRule<RevenueTargetConfig>({
           locationId: locationId ?? undefined,
           severity: "info",
           title: "Revenue is trailing today's target",
-          facts: { revenue: snapshot.revenue, target: config.dailyTarget },
+          // Signal facts are visible to any ai.executive.read holder with no
+          // finance-sensitive redaction (unlike ai_recommendation_evidence,
+          // which is gated by finance.read at the RLS layer) — the actual
+          // revenue figure lives only in this recommendation's evidence row
+          // below, marked isFinanceSensitive: true.
+          facts: { belowTarget: true },
           dedupeKey: `revenue_below_target:${locationId ?? "org"}:${dateKey}`,
           sourceEntityType: "daily_kpi_snapshot",
           sourceEntityId: snapshot.id,
