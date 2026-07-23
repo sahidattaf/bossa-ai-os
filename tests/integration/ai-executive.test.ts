@@ -88,6 +88,27 @@ async function applyTestIntent(
   if (error) throw new Error(`applyTestIntent failed: ${error.message}`);
 }
 
+/**
+ * Wraps a real Supabase client so that a single named RPC call fails with a
+ * simulated error while every other call (including apply_ai_evaluation's
+ * real write path) passes straight through to the real client — used to
+ * force evaluateOrganization()'s fact-gathering step to fail deterministically
+ * without needing a genuinely broken database.
+ */
+function withSimulatedFactsFailure(client: SupabaseClient<Database>, message: string): SupabaseClient<Database> {
+  return new Proxy(client, {
+    get(target, prop, receiver) {
+      if (prop === "rpc") {
+        return (fn: string, ...rest: unknown[]) =>
+          fn === "get_ai_evaluation_facts"
+            ? { data: null, error: { message } }
+            : (target.rpc as (...args: unknown[]) => unknown)(fn, ...rest);
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  });
+}
+
 describe("AI Executive (Phase 4A)", () => {
   let bossaOwner: SupabaseClient<Database>;
   let bossaStaff: SupabaseClient<Database>;
@@ -692,5 +713,89 @@ describe("AI Executive (Phase 4A)", () => {
     const locationRow = configs?.find((row) => row.location_id === newLocation!.id);
     expect((orgRow?.config as { threshold?: number } | null)?.threshold).toBe(1);
     expect((locationRow?.config as { threshold?: number } | null)?.threshold).toBe(2);
+  });
+
+  // ==========================================================================
+  // Regression: location-scoped provider-failure signal (root cause: the
+  // operational_provider_failure signal never set its own locationId, and
+  // toSnakeCaseIntents() always serialized an absent location as explicit
+  // null — during a location-scoped run this contradicted p_location_id and
+  // apply_ai_evaluation()'s mixed-scope guard rejected the write, masking the
+  // original fact-gathering error behind a VALIDATION_FAILED scope error.
+  // Fixed by having toSnakeCaseIntents() fall back to the run's own
+  // evaluationLocationId, not null, for any intent that omits its own
+  // location. See lib/ai/evaluate.ts's toSnakeCaseIntents().
+  // ==========================================================================
+
+  it("writes a location-scoped provider-failure signal and rethrows the original fact-gathering error unmasked by the scope guard", async () => {
+    const locationId = "00000000-0000-0000-0001-000000000001"; // BOSSA's seeded primary location
+    const message = `Simulated location provider outage ${Date.now()}`;
+    const flaky = withSimulatedFactsFailure(bossaOwner, message);
+
+    await expect(evaluateOrganization(flaky, BOSSA_ORG_ID, { locationId })).rejects.toSatisfy(
+      (error: unknown) => isOperationalError(error) && error.message === message,
+    );
+
+    const { data: signal } = await bossaOwner
+      .from("ai_signals")
+      .select("location_id, severity, status")
+      .eq("organization_id", BOSSA_ORG_ID)
+      .eq("dedupe_key", `operational_provider_failure:${locationId}`)
+      .single();
+
+    expect(signal?.location_id).toBe(locationId);
+    expect(signal?.severity).toBe("critical");
+  });
+
+  it("writes a null-location provider-failure signal when the organization-scoped evaluation's fact-gathering fails", async () => {
+    const message = `Simulated organization-scope provider outage ${Date.now()}`;
+    const flaky = withSimulatedFactsFailure(bossaOwner, message);
+
+    await expect(evaluateOrganization(flaky, BOSSA_ORG_ID)).rejects.toSatisfy(
+      (error: unknown) => isOperationalError(error) && error.message === message,
+    );
+
+    const { data: signal } = await bossaOwner
+      .from("ai_signals")
+      .select("location_id, severity")
+      .eq("organization_id", BOSSA_ORG_ID)
+      .eq("dedupe_key", "operational_provider_failure:org")
+      .single();
+
+    expect(signal?.location_id).toBeNull();
+    expect(signal?.severity).toBe("critical");
+  });
+
+  it("still rejects a genuinely mismatched non-null intent location, proving the scope-inheritance fallback never overrides an explicit different location", async () => {
+    const primaryLocationId = "00000000-0000-0000-0001-000000000001";
+    const { data: otherLocation, error: locationError } = await bossaOwner
+      .from("locations")
+      .insert({ organization_id: BOSSA_ORG_ID, name: `Mismatch Guard Location ${Date.now()}`, is_primary: false })
+      .select("id")
+      .single();
+    expect(locationError).toBeNull();
+
+    const { error } = await bossaOwner.rpc("apply_ai_evaluation", {
+      p_organization_id: BOSSA_ORG_ID,
+      p_location_id: primaryLocationId,
+      p_as_of: new Date().toISOString(),
+      p_rule_version: `mismatch_guard_test.${Date.now()}`,
+      p_intents: {
+        signals: [
+          {
+            signal_type: "mismatch_guard_test",
+            location_id: otherLocation!.id,
+            severity: "info",
+            title: "Should be rejected by the mixed-scope guard",
+            facts: {},
+            dedupe_key: `mismatch_guard_test:${Date.now()}`,
+          },
+        ],
+        recommendations: [],
+      } as unknown as Json,
+    });
+
+    expect(error).not.toBeNull();
+    expect(error?.message).toMatch(/VALIDATION_FAILED/);
   });
 });

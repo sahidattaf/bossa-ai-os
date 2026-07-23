@@ -180,6 +180,14 @@ Local: `npm run lint` (clean), `npx tsc --noEmit` (clean, strict mode), `npm run
 
 **CI — real run:** see the top-level final validation summary for the exact green run, bug-fix iterations, and Vercel preview results for this round.
 
+### Phase 4C follow-up: location-scoped provider-failure signal regression
+
+A final review found one more location-scoped regression introduced by the Phase 4C scope-validation migration (`20260725000003_ai_evaluation_scope_validation.sql`): `evaluateOrganization()`'s catch block writes an honest `operational_provider_failure` signal when `get_ai_evaluation_facts()` itself fails, but that signal object never set its own `locationId`, and `toSnakeCaseIntents()` unconditionally serialized any omitted `locationId` as explicit `null`. During a location-scoped run this meant the provider-failure signal always submitted `location_id: null` while `p_location_id` was a real location — `apply_ai_evaluation()`'s (correct) mixed-scope guard then rejected the write, and the resulting `VALIDATION_FAILED` scope error replaced the original fact-gathering error the caller actually needed to see.
+
+Fixed by making intent serialization scope-aware: `toSnakeCaseIntents(intents, evaluationLocationId)` now takes the run's own scope and falls back to it — `intent.locationId ?? evaluationLocationId` — instead of always falling back to `null`. An intent that omits its own location now inherits the run's exact scope (matching what every real rule already does explicitly); an intent that states a genuinely different non-null location is untouched by the fallback and is still rejected by the database guard, so no scope validation was weakened. The provider-failure signal itself also now explicitly sets `locationId: locationId ?? undefined` for clarity, though the fallback alone is sufficient to fix the bug.
+
+Three new integration tests in `tests/integration/ai-executive.test.ts` (18 → 21) prove: a location-scoped fact-gathering failure writes exactly one `operational_provider_failure` signal whose `location_id` equals the requested location, and rethrows the original provider error unmasked; an organization-scoped fact-gathering failure writes a `location_id: null` signal; and a genuinely mismatched non-null intent location is still rejected by `apply_ai_evaluation()` with `VALIDATION_FAILED`, proving the inheritance fallback never overrides an explicit, different location.
+
 ## Phase 5 readiness
 
 Everything Phase 5 (Integrations) needs is already reusable: the composite-FK tenant-scoping technique, the generic `status_transitions` + trigger mechanism (new machines are new rows, not new trigger functions), the typed `OperationalError` model, the `SECURITY DEFINER` hardening checklist, and — specifically for anything Phase 5 wants to surface as an AI-driven recommendation — a new rule is one file plus one registry line, with zero migration or RLS changes required.

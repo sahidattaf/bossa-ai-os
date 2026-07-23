@@ -54,11 +54,22 @@ async function loadRuleConfigs(
   return map;
 }
 
-function toSnakeCaseIntents(intents: EvaluationIntents) {
+/**
+ * Converts pure-TypeScript rule output into the snake_case shape
+ * apply_ai_evaluation() expects. `evaluationLocationId` is the exact scope
+ * of the current run (the same value passed as p_location_id): a signal or
+ * recommendation that doesn't set its own locationId inherits the run's
+ * scope, rather than always falling back to null — otherwise a
+ * location-scoped run's own facts (e.g. the provider-failure signal below,
+ * which never sets locationId) would submit an explicit null location_id,
+ * which apply_ai_evaluation()'s mixed-scope guard correctly rejects as not
+ * matching p_location_id.
+ */
+function toSnakeCaseIntents(intents: EvaluationIntents, evaluationLocationId: string | null) {
   return {
     signals: intents.signals.map((s: SignalIntent) => ({
       signal_type: s.signalType,
-      location_id: s.locationId ?? null,
+      location_id: s.locationId ?? evaluationLocationId,
       severity: s.severity,
       title: s.title,
       facts: s.facts ?? {},
@@ -69,7 +80,7 @@ function toSnakeCaseIntents(intents: EvaluationIntents) {
     })),
     recommendations: intents.recommendations.map((r: RecommendationIntent) => ({
       dedupe_key: r.dedupeKey,
-      location_id: r.locationId ?? null,
+      location_id: r.locationId ?? evaluationLocationId,
       recommendation_type: r.recommendationType,
       title: r.title,
       executive_summary: r.executiveSummary,
@@ -112,7 +123,7 @@ async function applyEvaluation(
     p_location_id: locationId as unknown as string,
     p_as_of: asOf.toISOString(),
     p_rule_version: ruleVersion,
-    p_intents: toSnakeCaseIntents(intents) as unknown as Json,
+    p_intents: toSnakeCaseIntents(intents, locationId) as unknown as Json,
   });
 
   if (error) throw toOperationalError(error);
@@ -183,6 +194,7 @@ export async function evaluateOrganization(
       signals: [
         {
           signalType: "operational_provider_failure",
+          locationId: locationId ?? undefined,
           severity: "critical",
           title: "AI evaluation could not gather operational facts",
           facts: { message },
