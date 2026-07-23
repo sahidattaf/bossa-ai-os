@@ -2,8 +2,8 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { isOperationalError, OperationalError, toOperationalError } from "@/lib/errors";
-import type { Database, Json } from "@/lib/supabase/database.types";
+import { OPERATIONAL_ERROR_CODES, OperationalError, toOperationalError, type OperationalErrorCode } from "@/lib/errors";
+import type { Database } from "@/lib/supabase/database.types";
 
 import { assignLeadOwnerAction } from "./actions/assign-lead-owner";
 import { cancelReservationAction } from "./actions/cancel-reservation";
@@ -42,6 +42,10 @@ export interface ExecuteRecommendationResult {
   error?: OperationalError;
 }
 
+function isOperationalErrorCode(code: string | null): code is OperationalErrorCode {
+  return code !== null && (OPERATIONAL_ERROR_CODES as readonly string[]).includes(code);
+}
+
 /**
  * The guarded action router. Rejects arbitrary function names, SQL, URLs,
  * prompts, tool names, or unknown action types before any write occurs —
@@ -54,13 +58,23 @@ export interface ExecuteRecommendationResult {
  * this function is called separately. begin_ai_recommendation_execution()
  * re-verifies ai.actions.approve, the approval's live status, and its
  * snapshotted payload_hash against the recommendation's *current*
- * payload_hash server-side before anything executes. Retry-safety comes
- * from the recommendation's own status machine, not a separate hash lookup:
- * 'completed' is terminal (no re-entry into 'executing'), so a second call
- * after a real success is rejected by the same status-transition guard that
- * protects every other status machine in this schema; a failed attempt
- * leaves the recommendation in 'failed', a legal 'failed' -> 'executing'
- * retry starting point.
+ * payload_hash server-side before anything executes.
+ *
+ * The domain mutation itself happens inside finalize_ai_recommendation_execution()
+ * (supabase/migrations/20260725000001_ai_transactional_action_execution.sql),
+ * not here — token validation, the mutation, ai_action_attempts, the status
+ * transition, and the audit event are all one atomic transaction, so a
+ * crash or lost response between the mutation and recording it can never
+ * leave a committed-but-unrecorded effect. This router calls exactly one
+ * well-known RPC name for every database-native action type — never a
+ * dynamically-constructed function name.
+ *
+ * Retry-safety comes from the recommendation's own status machine, not a
+ * separate hash lookup: 'completed' is terminal (no re-entry into
+ * 'executing'), so a second call after a real success is rejected by the
+ * same status-transition guard that protects every other status machine in
+ * this schema; a failed attempt leaves the recommendation in 'failed', a
+ * legal 'failed' -> 'executing' retry starting point.
  */
 export async function executeAiRecommendation(
   supabase: SupabaseDb,
@@ -110,38 +124,30 @@ export async function executeAiRecommendation(
   // always mints a fresh one as part of the same atomic claim this call just
   // won — guaranteed non-null immediately after a successful claim.
   const executionToken = claimed.execution_token!;
-  const startedAt = Date.now();
 
-  try {
-    const resultDetail = await actionModule.execute(supabase, recommendation.organization_id, payloadResult.data);
+  // Durable step 3: the mutation, attempt recording, and status transition,
+  // atomically. A thrown error here means the whole call was rejected before
+  // committing anything (e.g. a lost claim race) — genuinely nothing
+  // happened. A returned 'failed' result_status means the mutation itself
+  // was attempted and failed for a business reason (already recorded
+  // honestly, not thrown), matching the pre-existing distinction between "no
+  // attempt happened" and "an attempt happened and failed".
+  const { data: attempt, error: finalizeError } = await supabase.rpc("finalize_ai_recommendation_execution", {
+    p_recommendation_id: recommendationId,
+    p_execution_token: executionToken,
+  });
+  if (finalizeError) throw toOperationalError(finalizeError);
 
-    const { data: attempt, error: attemptError } = await supabase.rpc("record_ai_action_attempt", {
-      p_recommendation_id: recommendationId,
-      p_execution_token: executionToken,
-      p_result_status: "succeeded",
-      p_result_detail: resultDetail as unknown as Json,
-      p_duration_ms: Date.now() - startedAt,
-    });
-    if (attemptError) throw toOperationalError(attemptError);
-
+  if (attempt.result_status === "succeeded") {
     return { status: "succeeded", actionAttemptId: attempt.id };
-  } catch (thrown) {
-    const operationalError = isOperationalError(thrown)
-      ? thrown
-      : toOperationalError({ message: thrown instanceof Error ? thrown.message : String(thrown) });
-
-    const { data: attempt, error: attemptError } = await supabase.rpc("record_ai_action_attempt", {
-      p_recommendation_id: recommendationId,
-      p_execution_token: executionToken,
-      p_result_status: "failed",
-      p_error_code: operationalError.code,
-      p_error_message: operationalError.message,
-      p_duration_ms: Date.now() - startedAt,
-    });
-    if (attemptError) throw toOperationalError(attemptError);
-
-    return { status: "failed", actionAttemptId: attempt.id, error: operationalError };
   }
+
+  const errorCode = isOperationalErrorCode(attempt.error_code) ? attempt.error_code : "UNEXPECTED_ERROR";
+  return {
+    status: "failed",
+    actionAttemptId: attempt.id,
+    error: new OperationalError(errorCode, attempt.error_message ?? "The action attempt failed."),
+  };
 }
 
 /**

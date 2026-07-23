@@ -1456,6 +1456,33 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      finalize_ai_recommendation_execution: {
+        Args: { p_execution_token: string; p_recommendation_id: string }
+        Returns: {
+          action_payload: Json
+          action_type: string
+          actor_user_id: string | null
+          approval_id: string | null
+          attempted_at: string
+          duration_ms: number | null
+          error_code: string | null
+          error_message: string | null
+          execution_attempt_number: number | null
+          execution_token: string | null
+          id: string
+          organization_id: string
+          payload_hash: string
+          recommendation_id: string
+          result_detail: Json
+          result_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ai_action_attempts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       get_ai_evaluation_facts: {
         Args: {
           p_as_of?: string
