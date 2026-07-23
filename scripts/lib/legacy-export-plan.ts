@@ -11,6 +11,8 @@ import path from "node:path";
 export type LegacyProjectKey = "bossa-ai-os" | "bossa-asado-i-mar";
 
 export interface LegacyProjectSpec {
+  /** The one project ref this key is ever allowed to read from — checked against the URL actually supplied at runtime before any client is constructed or any table is read. */
+  expectedProjectRef: string;
   /** Only these public tables are ever read — an explicit allow-list, never a client-supplied or discovered table name. */
   tables: readonly string[];
   /** Whether this project has any real auth.users worth exporting identity metadata for. */
@@ -25,10 +27,12 @@ export interface LegacyProjectSpec {
  */
 export const LEGACY_PROJECT_SPECS: Record<LegacyProjectKey, LegacyProjectSpec> = {
   "bossa-ai-os": {
+    expectedProjectRef: "oqmftkttkfktyzefswpz",
     tables: ["campaigns", "weekly_briefs", "kpi_daily", "decision_log"],
     includeAuthIdentities: true,
   },
   "bossa-asado-i-mar": {
+    expectedProjectRef: "zgfncoexiqnqeqaxpqdy",
     tables: ["bossa_leads"],
     includeAuthIdentities: false,
   },
@@ -89,6 +93,24 @@ export function extractProjectRefFromUrl(url: string): string {
   return match[1]!;
 }
 
+/**
+ * Fails closed on any project/ref mismatch — called BEFORE a Supabase client
+ * is constructed or any table is read. This is what stops a cross-wired
+ * `LEGACY_SUPABASE_URL` (e.g. --project=bossa-ai-os pointed at Bossa Asado i
+ * Mar's URL, or vice versa) from ever reaching a live read: the allow-listed
+ * table set for the WRONG project would otherwise be silently queried
+ * against the wrong database.
+ */
+export function assertProjectRefMatches(project: LegacyProjectKey, actualProjectRef: string): void {
+  const expected = LEGACY_PROJECT_SPECS[project].expectedProjectRef;
+  if (actualProjectRef !== expected) {
+    throw new Error(
+      `Refusing to read from project ref "${actualProjectRef}": --project=${project} is only ever allowed to read from "${expected}". ` +
+        `Check that LEGACY_SUPABASE_URL actually points at the intended project before re-running.`,
+    );
+  }
+}
+
 export interface ManifestEntry {
   sourceProjectRef: string;
   table: string;
@@ -117,6 +139,63 @@ export function buildManifestEntry(params: {
     checksumSha256: params.checksumSha256,
     destinationDecision: params.destinationDecision ?? DEFAULT_DESTINATION_DECISION,
   };
+}
+
+export interface ExportManifest {
+  status: "completed" | "failed";
+  project: LegacyProjectKey;
+  sourceProjectRef: string;
+  generatedAt: string;
+  entries: ManifestEntry[];
+  failures: Array<{ table: string; error: string }>;
+}
+
+/**
+ * Builds the final manifest object. Deliberately the ONLY place that decides
+ * `status` — "completed" only when every requested dataset succeeded and
+ * there are zero failures, "failed" otherwise. A partial success (some
+ * tables ok, one not) is still reported as "failed": there is no
+ * partially-completed status, so a caller can never mistake a failed run
+ * for a clean one by only checking `entries.length > 0`.
+ */
+export function buildExportManifest(params: {
+  project: LegacyProjectKey;
+  sourceProjectRef: string;
+  generatedAt: string;
+  entries: ManifestEntry[];
+  failures: Array<{ table: string; error: string }>;
+}): ExportManifest {
+  return {
+    status: params.failures.length === 0 ? "completed" : "failed",
+    project: params.project,
+    sourceProjectRef: params.sourceProjectRef,
+    generatedAt: params.generatedAt,
+    entries: params.entries,
+    failures: params.failures,
+  };
+}
+
+/**
+ * Validates a fully-paginated row set against the table's own authoritative
+ * exact count and rejects any duplicate id seen across pages — the two
+ * completeness guarantees pagination alone can't provide (a page boundary
+ * landing exactly on a duplicate/missing row would otherwise silently
+ * under- or over-count). Called only after every page has been fetched, so
+ * a failure here means "the fully-assembled export is wrong," not "one page
+ * was wrong" — the caller must not write any file for this table if this
+ * throws.
+ */
+export function validateTableCompleteness(rows: ReadonlyArray<{ id: unknown }>, expectedCount: number, table: string): void {
+  if (rows.length !== expectedCount) {
+    throw new Error(`Row count mismatch for "${table}": downloaded ${rows.length}, but the database reports ${expectedCount}`);
+  }
+  const seen = new Set<unknown>();
+  for (const row of rows) {
+    if (seen.has(row.id)) {
+      throw new Error(`Duplicate id "${String(row.id)}" encountered across pages while exporting "${table}"`);
+    }
+    seen.add(row.id);
+  }
 }
 
 /**

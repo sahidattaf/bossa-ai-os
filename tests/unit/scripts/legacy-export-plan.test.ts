@@ -3,6 +3,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  assertProjectRefMatches,
+  buildExportManifest,
   buildManifestEntry,
   describeExportPlan,
   extractProjectRefFromUrl,
@@ -10,12 +12,14 @@ import {
   parseArgs,
   safeJoin,
   sha256Hex,
+  validateTableCompleteness,
 } from "@/scripts/lib/legacy-export-plan";
 
 describe("legacy-export-plan (pure logic only — no Supabase I/O, no real data)", () => {
   describe("allow-list", () => {
     it("bossa-ai-os only allow-lists its four verified non-empty legacy tables, plus auth identities", () => {
       expect(LEGACY_PROJECT_SPECS["bossa-ai-os"]).toEqual({
+        expectedProjectRef: "oqmftkttkfktyzefswpz",
         tables: ["campaigns", "weekly_briefs", "kpi_daily", "decision_log"],
         includeAuthIdentities: true,
       });
@@ -23,6 +27,7 @@ describe("legacy-export-plan (pure logic only — no Supabase I/O, no real data)
 
     it("bossa-asado-i-mar only allow-lists bossa_leads, with no auth identities to export", () => {
       expect(LEGACY_PROJECT_SPECS["bossa-asado-i-mar"]).toEqual({
+        expectedProjectRef: "zgfncoexiqnqeqaxpqdy",
         tables: ["bossa_leads"],
         includeAuthIdentities: false,
       });
@@ -50,6 +55,28 @@ describe("legacy-export-plan (pure logic only — no Supabase I/O, no real data)
       expect(lines.some((line) => line.includes("bossa_leads"))).toBe(true);
       expect(lines.some((line) => line.includes("campaigns"))).toBe(false);
       expect(lines.some((line) => line.includes("no auth users to export"))).toBe(true);
+    });
+  });
+
+  describe("project-ref binding (fail closed before any read)", () => {
+    it("accepts bossa-ai-os paired with its own expected ref", () => {
+      expect(() => assertProjectRefMatches("bossa-ai-os", "oqmftkttkfktyzefswpz")).not.toThrow();
+    });
+
+    it("accepts bossa-asado-i-mar paired with its own expected ref", () => {
+      expect(() => assertProjectRefMatches("bossa-asado-i-mar", "zgfncoexiqnqeqaxpqdy")).not.toThrow();
+    });
+
+    it("rejects bossa-ai-os cross-wired to Bossa Asado i Mar's ref", () => {
+      expect(() => assertProjectRefMatches("bossa-ai-os", "zgfncoexiqnqeqaxpqdy")).toThrow(/refusing to read/i);
+    });
+
+    it("rejects bossa-asado-i-mar cross-wired to bossa-ai-os's ref", () => {
+      expect(() => assertProjectRefMatches("bossa-asado-i-mar", "oqmftkttkfktyzefswpz")).toThrow(/refusing to read/i);
+    });
+
+    it("rejects a completely unrecognized ref for either project", () => {
+      expect(() => assertProjectRefMatches("bossa-ai-os", "some-other-unrelated-project")).toThrow(/refusing to read/i);
     });
   });
 
@@ -116,6 +143,72 @@ describe("legacy-export-plan (pure logic only — no Supabase I/O, no real data)
 
     it("extractProjectRefFromUrl throws on an unrecognized URL shape rather than guessing", () => {
       expect(() => extractProjectRefFromUrl("https://example.com")).toThrow();
+    });
+  });
+
+  describe("buildExportManifest status", () => {
+    it("is 'completed' only when there are zero failures", () => {
+      const manifest = buildExportManifest({
+        project: "bossa-ai-os",
+        sourceProjectRef: "oqmftkttkfktyzefswpz",
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        entries: [
+          buildManifestEntry({ sourceProjectRef: "oqmftkttkfktyzefswpz", table: "campaigns", exportedAt: "2026-01-01T00:00:00.000Z", rowCount: 3, checksumSha256: "abc" }),
+        ],
+        failures: [],
+      });
+      expect(manifest.status).toBe("completed");
+    });
+
+    it("is 'failed' when even one dataset failed, regardless of how many succeeded", () => {
+      const manifest = buildExportManifest({
+        project: "bossa-ai-os",
+        sourceProjectRef: "oqmftkttkfktyzefswpz",
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        entries: [
+          buildManifestEntry({ sourceProjectRef: "oqmftkttkfktyzefswpz", table: "campaigns", exportedAt: "2026-01-01T00:00:00.000Z", rowCount: 3, checksumSha256: "abc" }),
+        ],
+        failures: [{ table: "kpi_daily", error: "synthetic row-count mismatch" }],
+      });
+      expect(manifest.status).toBe("failed");
+    });
+
+    it("is 'failed' with zero successful entries when every dataset fails", () => {
+      const manifest = buildExportManifest({
+        project: "bossa-asado-i-mar",
+        sourceProjectRef: "zgfncoexiqnqeqaxpqdy",
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        entries: [],
+        failures: [{ table: "bossa_leads", error: "synthetic failure" }],
+      });
+      expect(manifest.status).toBe("failed");
+      expect(manifest.entries).toHaveLength(0);
+    });
+  });
+
+  describe("table completeness validation (pagination/count/duplicates)", () => {
+    it("passes when the downloaded row count exactly matches the database's exact count and every id is unique", () => {
+      const rows = [{ id: 1 }, { id: 2 }, { id: 3 }];
+      expect(() => validateTableCompleteness(rows, 3, "synthetic_table")).not.toThrow();
+    });
+
+    it("throws when downloaded rows are fewer than the exact count (a page was silently dropped)", () => {
+      const rows = [{ id: 1 }, { id: 2 }];
+      expect(() => validateTableCompleteness(rows, 3, "synthetic_table")).toThrow(/row count mismatch/i);
+    });
+
+    it("throws when downloaded rows exceed the exact count (something changed mid-pagination)", () => {
+      const rows = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }];
+      expect(() => validateTableCompleteness(rows, 3, "synthetic_table")).toThrow(/row count mismatch/i);
+    });
+
+    it("throws on a duplicate id across pages even when the total count happens to match", () => {
+      const rows = [{ id: 1 }, { id: 2 }, { id: 2 }];
+      expect(() => validateTableCompleteness(rows, 3, "synthetic_table")).toThrow(/duplicate id/i);
+    });
+
+    it("passes for a table with zero rows and a zero exact count", () => {
+      expect(() => validateTableCompleteness([], 0, "synthetic_empty_table")).not.toThrow();
     });
   });
 
