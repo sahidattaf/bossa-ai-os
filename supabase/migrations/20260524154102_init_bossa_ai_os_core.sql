@@ -1,0 +1,20 @@
+-- Historical marker migration — issue #22 (Phase 4.5 Lane A2), "migration
+-- history alignment."
+--
+-- This version and name are already tracked as APPLIED on the live
+-- `bossa-ai-os` project's remote migration-history table — this file exists
+-- only so the LOCAL migration list matches what remote already reports,
+-- avoiding a false "missing migration" gap and the false claim that
+-- `supabase db push` would simply append this repository's 33 migrations
+-- to an empty history. It does not represent this repository's schema in
+-- any way and must never be edited to add real DDL/DML — see
+-- docs/PRODUCTION_DEPLOYMENT.md § "Migration history alignment" for the
+-- full reasoning and docs/PRODUCTION_SCHEMA_COLLISION_CLEANUP_PLAN.md for
+-- what the legacy schema this version originally created actually
+-- contains and how it will be isolated.
+--
+-- Deliberately a no-op: zero DDL, zero DML. Safe on a fresh `supabase db
+-- reset` (nothing runs) and safe if ever pushed to a project that already
+-- has this version tracked (this file's content is irrelevant to an
+-- already-applied version — see the same doc for how `supabase db push`
+-- treats already-tracked versions).
