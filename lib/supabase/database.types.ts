@@ -1320,10 +1320,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      ai_execution_lease_duration: {
-        Args: Record<PropertyKey, never>
-        Returns: unknown
-      }
+      ai_execution_lease_duration: { Args: never; Returns: string }
       apply_ai_evaluation: {
         Args: {
           p_as_of: string
