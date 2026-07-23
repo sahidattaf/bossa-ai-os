@@ -503,17 +503,28 @@ describe("AI Executive (Phase 4A)", () => {
       "00000000-0000-0000-0002-000000000002",
     );
 
-    // The original, untouched execution finalizes normally.
-    const { error: finalizeError } = await bossaOwner.rpc("record_ai_action_attempt", {
+    // The original, untouched execution finalizes normally against its
+    // original token/hash — this test claims execution directly (rather than
+    // through executeAiRecommendation()) specifically to hold the
+    // recommendation open long enough to re-evaluate against it, so no real
+    // lib/operations/* domain action ever ran here; that full round trip
+    // (including the actual owner_user_id update) is covered separately by
+    // "approves and executes a recommendation..." above.
+    const { data: attempt, error: finalizeError } = await bossaOwner.rpc("record_ai_action_attempt", {
       p_recommendation_id: target.recommendation.id,
       p_execution_token: executionToken,
       p_result_status: "succeeded",
       p_result_detail: {} as unknown as Json,
     });
     expect(finalizeError).toBeNull();
+    expect(attempt?.execution_token).toBe(executionToken);
 
-    const { data: updatedLead } = await bossaOwner.from("leads").select("owner_user_id").eq("id", lead.id).single();
-    expect(updatedLead?.owner_user_id).toBe(BOSSA_OWNER_ID);
+    const { data: completed } = await bossaOwner
+      .from("ai_recommendations")
+      .select("status")
+      .eq("id", target.recommendation.id)
+      .single();
+    expect(completed?.status).toBe("completed");
   });
 
   it("recovers a crashed/abandoned execution claim and allows a clean retry afterward", async () => {
