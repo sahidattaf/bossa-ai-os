@@ -61,7 +61,7 @@ $$;
 -- live subquery that RLS would filter to zero rows once we're authenticated
 -- as a user with no BOSSA membership at all.
 create temporary table ai_test_ids (key text primary key, id uuid not null);
-grant select on ai_test_ids to authenticated;
+grant select, insert on ai_test_ids to authenticated;
 
 insert into ai_test_ids (key, id)
 select 'bossa_assign_lead_owner_approval', a.id
@@ -373,12 +373,23 @@ select lives_ok(
   ),
   'begin_ai_recommendation_execution succeeds once the approval is current and the payload hash matches'
 );
+
+-- Captured from the table (not the function's own return value) — the
+-- claim's effect is already durable by the time lives_ok() above returns,
+-- and record_ai_action_attempt()/record_ai_outcome() below both require this
+-- exact token to finalize.
+insert into ai_test_ids (key, id)
+select 'bossa_execution_token', execution_token
+from public.ai_recommendations
+where id = (select recommendation_id from public.ai_approvals where organization_id = '00000000-0000-0000-0000-000000000001');
+
 select lives_ok(
   format(
-    $$ select public.record_ai_action_attempt('%s'::uuid, 'succeeded', '{}'::jsonb) $$,
-    (select recommendation_id from public.ai_approvals where organization_id = '00000000-0000-0000-0000-000000000001')
+    $$ select public.record_ai_action_attempt('%s'::uuid, '%s'::uuid, 'succeeded', '{}'::jsonb) $$,
+    (select recommendation_id from public.ai_approvals where organization_id = '00000000-0000-0000-0000-000000000001'),
+    (select id from ai_test_ids where key = 'bossa_execution_token')
   ),
-  'record_ai_action_attempt succeeds for a recommendation that is currently executing'
+  'record_ai_action_attempt succeeds for a recommendation that is currently executing, given the current execution token'
 );
 
 -- 29: retry-safety — a completed recommendation cannot re-enter 'executing'.
@@ -412,14 +423,16 @@ select throws_ok(
   'ai_action_attempts rows cannot be edited after the fact, even by the organization_owner who triggered them'
 );
 
--- 32: record_ai_outcome records an honest outcome tied to the completed attempt.
+-- 32: record_ai_outcome records an honest outcome tied to the completed
+-- attempt, given the same execution token that attempt was finalized under.
 select lives_ok(
   format(
-    $$ select public.record_ai_outcome('%s'::uuid, (select id from public.ai_action_attempts where recommendation_id = '%s' limit 1), 'successful') $$,
+    $$ select public.record_ai_outcome('%s'::uuid, (select id from public.ai_action_attempts where recommendation_id = '%s' limit 1), '%s'::uuid, 'successful') $$,
     (select recommendation_id from public.ai_approvals where organization_id = '00000000-0000-0000-0000-000000000001'),
-    (select recommendation_id from public.ai_approvals where organization_id = '00000000-0000-0000-0000-000000000001')
+    (select recommendation_id from public.ai_approvals where organization_id = '00000000-0000-0000-0000-000000000001'),
+    (select id from ai_test_ids where key = 'bossa_execution_token')
   ),
-  'record_ai_outcome succeeds for the completed recommendation'
+  'record_ai_outcome succeeds for the completed recommendation, given the execution token that produced its action attempt'
 );
 
 -- 33-34: reject_ai_recommendation requires a non-empty reason, and rejecting
