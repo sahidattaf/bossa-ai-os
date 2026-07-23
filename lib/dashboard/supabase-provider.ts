@@ -5,7 +5,7 @@ import { listRecentKpiSnapshots } from "@/lib/operations/kpi-snapshots";
 import type { Database } from "@/lib/supabase/database.types";
 
 import type { DashboardDataProvider } from "./data-provider";
-import type { AiPriorityItem, DashboardData, LiveAlertItem } from "./types";
+import type { AiPriorityItem, ApprovalQueueItem, DashboardData, LiveAlertItem, Priority } from "./types";
 
 const NO_DATA_TREND = { deltaPercent: 0, comparisonLabel: "no data yet" };
 
@@ -24,90 +24,25 @@ interface DashboardSnapshot {
   average_ticket_today: number | null;
 }
 
-function buildAiPriorities(snapshot: DashboardSnapshot): AiPriorityItem[] {
-  const priorities: AiPriorityItem[] = [];
-
-  if (snapshot.unanswered_leads > 0) {
-    priorities.push({
-      id: "unanswered-leads",
-      title: `Respond to ${snapshot.unanswered_leads} unanswered lead${snapshot.unanswered_leads === 1 ? "" : "s"}`,
-      priority: snapshot.unanswered_leads >= 3 ? "High" : "Medium",
-      owner: "CRM",
-      detail: "New leads are still sitting in the intake queue with no reply.",
-    });
-  }
-
-  if (snapshot.reservations_tonight === 0) {
-    priorities.push({
-      id: "no-reservations-tonight",
-      title: "No reservations booked tonight",
-      priority: "Medium",
-      owner: "Reservations",
-      detail: "Consider a same-day promotion or outreach to regulars.",
-    });
-  }
-
-  if (snapshot.orders_cancelled_today > 0) {
-    priorities.push({
-      id: "orders-cancelled-today",
-      title: `Review ${snapshot.orders_cancelled_today} cancelled order${snapshot.orders_cancelled_today === 1 ? "" : "s"} today`,
-      priority: "Low",
-      owner: "Operations",
-      detail: "Cancellations can point to kitchen capacity or menu availability issues.",
-    });
-  }
-
-  return priorities;
-}
-
-function buildLiveAlerts(snapshot: DashboardSnapshot): LiveAlertItem[] {
-  const alerts: LiveAlertItem[] = [];
-  const now = snapshot.as_of;
-
-  if (snapshot.unanswered_leads >= 3) {
-    alerts.push({
-      id: "unanswered-leads-threshold",
-      severity: "warning",
-      message: `${snapshot.unanswered_leads} leads have gone unanswered today.`,
-      occurredAt: now,
-    });
-  }
-
-  if (snapshot.reservations_no_show_today > 0) {
-    alerts.push({
-      id: "no-shows-today",
-      severity: "info",
-      message: `${snapshot.reservations_no_show_today} no-show${snapshot.reservations_no_show_today === 1 ? "" : "s"} recorded today.`,
-      occurredAt: now,
-    });
-  }
-
-  if (snapshot.orders_cancelled_today > 0) {
-    alerts.push({
-      id: "cancellations-today",
-      severity: "warning",
-      message: `${snapshot.orders_cancelled_today} order${snapshot.orders_cancelled_today === 1 ? "" : "s"} cancelled today.`,
-      occurredAt: now,
-    });
-  }
-
-  return alerts;
-}
+const SEVERITY_TO_PRIORITY: Record<string, Priority> = {
+  critical: "High",
+  warning: "Medium",
+  info: "Low",
+};
 
 /**
- * Real implementation of DashboardDataProvider (Phase 3A, issue #16 scope
- * E). Every "today"/"tonight" number comes from one call to the
- * get_dashboard_snapshot() RPC (20260722000007) — a single SECURITY INVOKER,
- * organization-scoped, dashboard.read-gated query, never N+1. Revenue-shaped
- * fields (revenue_today, average_ticket_today) come back null unless the
- * caller also has finance.read, in which case they render as an honest zero
- * — never a fabricated number.
+ * Real implementation of DashboardDataProvider (Phase 3A's live aggregates,
+ * Phase 4A's real AI Executive records). Every "today"/"tonight" number
+ * comes from one call to get_dashboard_snapshot() (20260722000007) — a
+ * single SECURITY INVOKER, organization-scoped, dashboard.read-gated query,
+ * never N+1. aiPriorities/liveAlerts/approvalQueue now read real
+ * ai_recommendations/ai_signals/ai_approvals rows (issue #18 scope 8:
+ * "Integrate the dashboard AI priorities widget with real recommendation
+ * records while keeping the existing provider contract stable") — the
+ * DashboardData shape itself is unchanged from Phase 1.
  *
  * Food cost and labor percentage widgets stay at their Phase 2 honest-empty
- * values: no source tables for either exist yet in Phase 3A (out of scope —
- * see docs/PHASE_3_IMPLEMENTATION_REPORT.md). Same for reviewScore and
- * productKpi: no reviews table and no product-KPI-to-order-item mapping
- * exist yet either.
+ * values: no source tables for either exist yet in this phase.
  */
 export class SupabaseDashboardDataProvider implements DashboardDataProvider {
   constructor(private readonly supabase: SupabaseClient<Database>) {}
@@ -128,13 +63,14 @@ export class SupabaseDashboardDataProvider implements DashboardDataProvider {
     if (snapshotError) throw toOperationalError(snapshotError);
     const snapshot = snapshotData as unknown as DashboardSnapshot;
 
-    // Trailing actual daily revenue, oldest first — a deterministic baseline
-    // trend line, not a predictive model (issue #16 scope E: "documented
-    // deterministic logic"). Only meaningful with finance.read; otherwise
-    // stays an honest empty state, matching revenueToday's own gating.
-    const recentSnapshots = snapshot.finance_visible
-      ? await listRecentKpiSnapshots(this.supabase, organizationId, { days: 7 })
-      : [];
+    const [recentSnapshots, aiPriorities, liveAlerts, approvalQueue] = await Promise.all([
+      snapshot.finance_visible
+        ? listRecentKpiSnapshots(this.supabase, organizationId, { days: 7 })
+        : Promise.resolve([]),
+      this.buildAiPriorities(organizationId),
+      this.buildLiveAlerts(organizationId),
+      this.buildApprovalQueue(organizationId),
+    ]);
     const orderedSnapshots = [...recentSnapshots].reverse();
 
     return {
@@ -166,14 +102,95 @@ export class SupabaseDashboardDataProvider implements DashboardDataProvider {
       foodCostPercentage: { value: 0, targetValue: 0, trend: NO_DATA_TREND },
       laborPercentage: { value: 0, targetValue: 0, trend: NO_DATA_TREND },
       syncSources: [],
-      aiPriorities: buildAiPriorities(snapshot),
-      approvalQueue: [],
-      liveAlerts: buildLiveAlerts(snapshot),
+      aiPriorities,
+      approvalQueue,
+      liveAlerts,
       revenueForecast: {
         labels: orderedSnapshots.map((row) => row.snapshot_date),
         projectedAmounts: orderedSnapshots.map((row) => row.revenue),
       },
       quickActions: [],
     };
+  }
+
+  /** Top open recommendations by priority_score — real evidence-backed AI Executive output, not a synthetic derivation. */
+  private async buildAiPriorities(organizationId: string): Promise<AiPriorityItem[]> {
+    const { data, error } = await this.supabase
+      .from("ai_recommendations")
+      .select("id, title, executive_summary, severity, status, recommendation_type")
+      .eq("organization_id", organizationId)
+      .in("status", ["proposed", "approved", "executing"])
+      .order("priority_score", { ascending: false })
+      .limit(5);
+
+    if (error) throw toOperationalError(error);
+
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      title: row.title,
+      priority: SEVERITY_TO_PRIORITY[row.severity] ?? "Low",
+      owner: "AI Executive",
+      detail: row.executive_summary,
+    }));
+  }
+
+  /** Active signals — the same rows the AI Executive workspace's signal feed shows. */
+  private async buildLiveAlerts(organizationId: string): Promise<LiveAlertItem[]> {
+    const { data, error } = await this.supabase
+      .from("ai_signals")
+      .select("id, severity, title, observed_at")
+      .eq("organization_id", organizationId)
+      .eq("status", "active")
+      .in("severity", ["warning", "critical"])
+      .order("observed_at", { ascending: false })
+      .limit(5);
+
+    if (error) throw toOperationalError(error);
+
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      severity: row.severity as LiveAlertItem["severity"],
+      message: row.title,
+      occurredAt: row.observed_at,
+    }));
+  }
+
+  /** Pending approvals awaiting a decision — same query the approvals route uses. */
+  private async buildApprovalQueue(organizationId: string): Promise<ApprovalQueueItem[]> {
+    const { data: approvals, error: approvalsError } = await this.supabase
+      .from("ai_approvals")
+      .select("id, recommendation_id")
+      .eq("organization_id", organizationId)
+      .eq("status", "pending")
+      .limit(5);
+
+    if (approvalsError) throw toOperationalError(approvalsError);
+    if (!approvals || approvals.length === 0) return [];
+
+    const { data: recommendations, error: recommendationsError } = await this.supabase
+      .from("ai_recommendations")
+      .select("id, title, recommendation_type")
+      .eq("organization_id", organizationId)
+      .in(
+        "id",
+        approvals.map((a) => a.recommendation_id),
+      );
+
+    if (recommendationsError) throw toOperationalError(recommendationsError);
+
+    const recommendationById = new Map((recommendations ?? []).map((r) => [r.id, r]));
+
+    return approvals
+      .map((approval) => {
+        const recommendation = recommendationById.get(approval.recommendation_id);
+        if (!recommendation) return null;
+        return {
+          id: approval.id,
+          title: recommendation.title,
+          type: recommendation.recommendation_type,
+          requestedBy: "AI Executive",
+        };
+      })
+      .filter((item): item is ApprovalQueueItem => item !== null);
   }
 }

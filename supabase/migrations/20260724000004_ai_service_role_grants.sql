@@ -1,0 +1,18 @@
+-- Phase 4B: service_role has no implicit table-level privileges on
+-- application tables in this project — every prior service-role use
+-- (scripts/generate-kpi-snapshots.ts) went through a SECURITY DEFINER
+-- function, which runs with the *defining* role's privileges regardless of
+-- who calls it, so no direct grant was ever needed before. Recovery testing
+-- is the first case that needs service_role to touch ai_recommendations
+-- directly (backdating executing_at to deterministically simulate an
+-- execution lease elapsing, since function-mediated writes can't be told to
+-- lie about the current time) — found by CI's real integration-test run:
+-- "permission denied for table ai_recommendations" with Postgres's own hint
+-- naming exactly this grant.
+--
+-- service_role already bypasses RLS entirely and is never used on any user
+-- request path (docs/SECURITY_MODEL.md's "Service-role key" section) — this
+-- grant doesn't expand what service_role can effectively do, it just gives
+-- Postgres's ordinary privilege check (which RLS bypass alone does not
+-- skip) something to say yes to.
+grant select, update on public.ai_recommendations to service_role;

@@ -34,6 +34,491 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_action_attempts: {
+        Row: {
+          action_payload: Json
+          action_type: string
+          actor_user_id: string | null
+          approval_id: string | null
+          attempted_at: string
+          duration_ms: number | null
+          error_code: string | null
+          error_message: string | null
+          execution_attempt_number: number | null
+          execution_token: string | null
+          id: string
+          organization_id: string
+          payload_hash: string
+          recommendation_id: string
+          result_detail: Json
+          result_status: string
+        }
+        Insert: {
+          action_payload: Json
+          action_type: string
+          actor_user_id?: string | null
+          approval_id?: string | null
+          attempted_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          execution_attempt_number?: number | null
+          execution_token?: string | null
+          id?: string
+          organization_id: string
+          payload_hash: string
+          recommendation_id: string
+          result_detail?: Json
+          result_status: string
+        }
+        Update: {
+          action_payload?: Json
+          action_type?: string
+          actor_user_id?: string | null
+          approval_id?: string | null
+          attempted_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          execution_attempt_number?: number | null
+          execution_token?: string | null
+          id?: string
+          organization_id?: string
+          payload_hash?: string
+          recommendation_id?: string
+          result_detail?: Json
+          result_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_action_attempts_organization_id_approval_id_fkey"
+            columns: ["organization_id", "approval_id"]
+            isOneToOne: false
+            referencedRelation: "ai_approvals"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "ai_action_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_action_attempts_organization_id_recommendation_id_fkey"
+            columns: ["organization_id", "recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_recommendations"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      ai_approvals: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by_user_id: string | null
+          expires_at: string | null
+          id: string
+          organization_id: string
+          payload_hash_at_decision: string | null
+          reason: string | null
+          recommendation_id: string
+          status: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by_user_id?: string | null
+          expires_at?: string | null
+          id?: string
+          organization_id: string
+          payload_hash_at_decision?: string | null
+          reason?: string | null
+          recommendation_id: string
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by_user_id?: string | null
+          expires_at?: string | null
+          id?: string
+          organization_id?: string
+          payload_hash_at_decision?: string | null
+          reason?: string | null
+          recommendation_id?: string
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_approvals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_approvals_organization_id_recommendation_id_fkey"
+            columns: ["organization_id", "recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_recommendations"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      ai_outcomes: {
+        Row: {
+          action_attempt_id: string | null
+          after_snapshot: Json
+          before_snapshot: Json
+          created_at: string
+          failure_code: string | null
+          failure_message: string | null
+          human_notes: string | null
+          id: string
+          measured_at: string | null
+          organization_id: string
+          outcome_metrics: Json
+          recommendation_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          action_attempt_id?: string | null
+          after_snapshot?: Json
+          before_snapshot?: Json
+          created_at?: string
+          failure_code?: string | null
+          failure_message?: string | null
+          human_notes?: string | null
+          id?: string
+          measured_at?: string | null
+          organization_id: string
+          outcome_metrics?: Json
+          recommendation_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          action_attempt_id?: string | null
+          after_snapshot?: Json
+          before_snapshot?: Json
+          created_at?: string
+          failure_code?: string | null
+          failure_message?: string | null
+          human_notes?: string | null
+          id?: string
+          measured_at?: string | null
+          organization_id?: string
+          outcome_metrics?: Json
+          recommendation_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_outcomes_organization_id_action_attempt_id_fkey"
+            columns: ["organization_id", "action_attempt_id"]
+            isOneToOne: false
+            referencedRelation: "ai_action_attempts"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "ai_outcomes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_outcomes_organization_id_recommendation_id_fkey"
+            columns: ["organization_id", "recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_recommendations"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      ai_recommendation_evidence: {
+        Row: {
+          calculation_definition: string
+          created_at: string
+          expected_value: Json | null
+          id: string
+          is_finance_sensitive: boolean
+          metric_name: string
+          observed_value: Json
+          organization_id: string
+          recommendation_id: string
+          source_entity_id: string | null
+          source_entity_type: string | null
+        }
+        Insert: {
+          calculation_definition: string
+          created_at?: string
+          expected_value?: Json | null
+          id?: string
+          is_finance_sensitive?: boolean
+          metric_name: string
+          observed_value: Json
+          organization_id: string
+          recommendation_id: string
+          source_entity_id?: string | null
+          source_entity_type?: string | null
+        }
+        Update: {
+          calculation_definition?: string
+          created_at?: string
+          expected_value?: Json | null
+          id?: string
+          is_finance_sensitive?: boolean
+          metric_name?: string
+          observed_value?: Json
+          organization_id?: string
+          recommendation_id?: string
+          source_entity_id?: string | null
+          source_entity_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_recommendation_evidence_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_recommendation_evidence_organization_id_recommendation__fkey"
+            columns: ["organization_id", "recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_recommendations"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      ai_recommendations: {
+        Row: {
+          action_schema_version: string
+          created_at: string
+          dedupe_key: string
+          executing_at: string | null
+          execution_attempt_number: number
+          execution_token: string | null
+          executive_summary: string
+          expected_benefit: string | null
+          expires_at: string | null
+          id: string
+          location_id: string | null
+          organization_id: string
+          payload_hash: string | null
+          priority_score: number
+          recommendation_type: string
+          recommended_action_payload: Json
+          recommended_action_type: string
+          requires_approval: boolean
+          risk_level: string
+          rule_id: string
+          rule_version: string
+          severity: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          action_schema_version?: string
+          created_at?: string
+          dedupe_key: string
+          executing_at?: string | null
+          execution_attempt_number?: number
+          execution_token?: string | null
+          executive_summary: string
+          expected_benefit?: string | null
+          expires_at?: string | null
+          id?: string
+          location_id?: string | null
+          organization_id: string
+          payload_hash?: string | null
+          priority_score?: number
+          recommendation_type: string
+          recommended_action_payload?: Json
+          recommended_action_type: string
+          requires_approval?: boolean
+          risk_level?: string
+          rule_id: string
+          rule_version: string
+          severity: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          action_schema_version?: string
+          created_at?: string
+          dedupe_key?: string
+          executing_at?: string | null
+          execution_attempt_number?: number
+          execution_token?: string | null
+          executive_summary?: string
+          expected_benefit?: string | null
+          expires_at?: string | null
+          id?: string
+          location_id?: string | null
+          organization_id?: string
+          payload_hash?: string | null
+          priority_score?: number
+          recommendation_type?: string
+          recommended_action_payload?: Json
+          recommended_action_type?: string
+          requires_approval?: boolean
+          risk_level?: string
+          rule_id?: string
+          rule_version?: string
+          severity?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_recommendations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_recommendations_organization_id_location_id_fkey"
+            columns: ["organization_id", "location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      ai_rule_configs: {
+        Row: {
+          config: Json
+          created_at: string
+          enabled: boolean
+          id: string
+          location_id: string | null
+          organization_id: string
+          rule_key: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          location_id?: string | null
+          organization_id: string
+          rule_key: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          location_id?: string | null
+          organization_id?: string
+          rule_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_rule_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_rule_configs_organization_id_location_id_fkey"
+            columns: ["organization_id", "location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      ai_signals: {
+        Row: {
+          created_at: string
+          dedupe_key: string
+          facts: Json
+          id: string
+          location_id: string | null
+          observed_at: string
+          organization_id: string
+          rule_version: string
+          severity: string
+          signal_type: string
+          source_entity_id: string | null
+          source_entity_type: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dedupe_key: string
+          facts?: Json
+          id?: string
+          location_id?: string | null
+          observed_at?: string
+          organization_id: string
+          rule_version: string
+          severity: string
+          signal_type: string
+          source_entity_id?: string | null
+          source_entity_type?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dedupe_key?: string
+          facts?: Json
+          id?: string
+          location_id?: string | null
+          observed_at?: string
+          organization_id?: string
+          rule_version?: string
+          severity?: string
+          signal_type?: string
+          source_entity_id?: string | null
+          source_entity_type?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_signals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_signals_organization_id_location_id_fkey"
+            columns: ["organization_id", "location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -835,6 +1320,76 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ai_execution_lease_duration: { Args: never; Returns: string }
+      apply_ai_evaluation: {
+        Args: {
+          p_as_of: string
+          p_intents: Json
+          p_location_id: string
+          p_organization_id: string
+          p_rule_version: string
+        }
+        Returns: Json
+      }
+      approve_ai_recommendation: {
+        Args: { p_approval_id: string; p_expected_version: number }
+        Returns: {
+          created_at: string
+          decided_at: string | null
+          decided_by_user_id: string | null
+          expires_at: string | null
+          id: string
+          organization_id: string
+          payload_hash_at_decision: string | null
+          reason: string | null
+          recommendation_id: string
+          status: string
+          updated_at: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ai_approvals"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      begin_ai_recommendation_execution: {
+        Args: { p_recommendation_id: string }
+        Returns: {
+          action_schema_version: string
+          created_at: string
+          dedupe_key: string
+          executing_at: string | null
+          execution_attempt_number: number
+          execution_token: string | null
+          executive_summary: string
+          expected_benefit: string | null
+          expires_at: string | null
+          id: string
+          location_id: string | null
+          organization_id: string
+          payload_hash: string | null
+          priority_score: number
+          recommendation_type: string
+          recommended_action_payload: Json
+          recommended_action_type: string
+          requires_approval: boolean
+          risk_level: string
+          rule_id: string
+          rule_version: string
+          severity: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ai_recommendations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       calculate_daily_kpi_snapshot: {
         Args: {
           p_location_id?: string
@@ -865,6 +1420,77 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      dismiss_ai_recommendation: {
+        Args: { p_recommendation_id: string }
+        Returns: {
+          action_schema_version: string
+          created_at: string
+          dedupe_key: string
+          executing_at: string | null
+          execution_attempt_number: number
+          execution_token: string | null
+          executive_summary: string
+          expected_benefit: string | null
+          expires_at: string | null
+          id: string
+          location_id: string | null
+          organization_id: string
+          payload_hash: string | null
+          priority_score: number
+          recommendation_type: string
+          recommended_action_payload: Json
+          recommended_action_type: string
+          requires_approval: boolean
+          risk_level: string
+          rule_id: string
+          rule_version: string
+          severity: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ai_recommendations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      finalize_ai_recommendation_execution: {
+        Args: { p_execution_token: string; p_recommendation_id: string }
+        Returns: {
+          action_payload: Json
+          action_type: string
+          actor_user_id: string | null
+          approval_id: string | null
+          attempted_at: string
+          duration_ms: number | null
+          error_code: string | null
+          error_message: string | null
+          execution_attempt_number: number | null
+          execution_token: string | null
+          id: string
+          organization_id: string
+          payload_hash: string
+          recommendation_id: string
+          result_detail: Json
+          result_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ai_action_attempts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      get_ai_evaluation_facts: {
+        Args: {
+          p_as_of?: string
+          p_location_id?: string
+          p_organization_id: string
+        }
+        Returns: Json
+      }
       get_dashboard_snapshot: {
         Args: { p_as_of?: string; p_organization_id: string }
         Returns: Json
@@ -894,6 +1520,77 @@ export type Database = {
         Args: { p_order_id: string }
         Returns: undefined
       }
+      record_ai_action_attempt: {
+        Args: {
+          p_duration_ms?: number
+          p_error_code?: string
+          p_error_message?: string
+          p_execution_token: string
+          p_recommendation_id: string
+          p_result_detail?: Json
+          p_result_status: string
+        }
+        Returns: {
+          action_payload: Json
+          action_type: string
+          actor_user_id: string | null
+          approval_id: string | null
+          attempted_at: string
+          duration_ms: number | null
+          error_code: string | null
+          error_message: string | null
+          execution_attempt_number: number | null
+          execution_token: string | null
+          id: string
+          organization_id: string
+          payload_hash: string
+          recommendation_id: string
+          result_detail: Json
+          result_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ai_action_attempts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      record_ai_outcome: {
+        Args: {
+          p_action_attempt_id: string
+          p_after_snapshot?: Json
+          p_before_snapshot?: Json
+          p_execution_token: string
+          p_failure_code?: string
+          p_failure_message?: string
+          p_human_notes?: string
+          p_outcome_metrics?: Json
+          p_recommendation_id: string
+          p_status: string
+        }
+        Returns: {
+          action_attempt_id: string | null
+          after_snapshot: Json
+          before_snapshot: Json
+          created_at: string
+          failure_code: string | null
+          failure_message: string | null
+          human_notes: string | null
+          id: string
+          measured_at: string | null
+          organization_id: string
+          outcome_metrics: Json
+          recommendation_id: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ai_outcomes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       record_audit_event: {
         Args: {
           p_action: string
@@ -903,6 +1600,69 @@ export type Database = {
           p_organization_id: string
         }
         Returns: string
+      }
+      recover_stalled_ai_execution: {
+        Args: { p_recommendation_id: string }
+        Returns: {
+          action_schema_version: string
+          created_at: string
+          dedupe_key: string
+          executing_at: string | null
+          execution_attempt_number: number
+          execution_token: string | null
+          executive_summary: string
+          expected_benefit: string | null
+          expires_at: string | null
+          id: string
+          location_id: string | null
+          organization_id: string
+          payload_hash: string | null
+          priority_score: number
+          recommendation_type: string
+          recommended_action_payload: Json
+          recommended_action_type: string
+          requires_approval: boolean
+          risk_level: string
+          rule_id: string
+          rule_version: string
+          severity: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ai_recommendations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reject_ai_recommendation: {
+        Args: {
+          p_approval_id: string
+          p_expected_version: number
+          p_reason: string
+        }
+        Returns: {
+          created_at: string
+          decided_at: string | null
+          decided_by_user_id: string | null
+          expires_at: string | null
+          id: string
+          organization_id: string
+          payload_hash_at_decision: string | null
+          reason: string | null
+          recommendation_id: string
+          status: string
+          updated_at: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ai_approvals"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {

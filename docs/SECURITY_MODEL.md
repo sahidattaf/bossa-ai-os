@@ -1,6 +1,6 @@
 # Security Model
 
-How Hospitality OS enforces tenant isolation, authentication, and role-based access. Written for anyone reviewing or extending the Supabase schema in `supabase/migrations/`. Covers Phase 2 (tenancy/auth/RBAC) and Phase 3 (operational data) — the RLS pattern is identical across both; Phase 3 additions are called out in their own section below.
+How Hospitality OS enforces tenant isolation, authentication, and role-based access. Written for anyone reviewing or extending the Supabase schema in `supabase/migrations/`. Covers Phase 2 (tenancy/auth/RBAC), Phase 3 (operational data), and Phase 4 (AI Executive) — the RLS pattern is identical across all three; Phase 3 and Phase 4 additions are called out in their own sections below.
 
 ---
 
@@ -121,8 +121,49 @@ Unlike every other function in this schema (all `SECURITY DEFINER`, needed to re
 
 `enforce_status_transition()` (BEFORE, validates) and `audit_status_transition()` (AFTER, records) are separate, generic, reusable across every status column in the schema — see `docs/ORDER_RESERVATION_LEAD_WORKFLOWS.md` for the full rulebook and reasoning.
 
+## Phase 4 additions
+
+Seven new tenant-owned tables (`ai_rule_configs`, `ai_signals`, `ai_recommendations`, `ai_recommendation_evidence`, `ai_approvals`, `ai_action_attempts`, `ai_outcomes`) power the AI Executive workspace — full schema in `docs/AI_EXECUTIVE_ARCHITECTURE.md`. The RLS pattern is identical to Phase 2/3's, with four additions worth calling out specifically:
+
+### Six of seven tables are entirely function-mediated, not just RLS-restricted
+
+`ai_rule_configs` is the only one of the seven with an `authenticated` INSERT/UPDATE grant at all. `ai_signals` and `ai_recommendation_evidence` are written exclusively by `apply_ai_evaluation()`; `ai_recommendations` and `ai_approvals` only ever change through the `SECURITY DEFINER` functions in `20260723000007_ai_approval_functions.sql` and `20260724000001_ai_execution_concurrency.sql` (`approve_ai_recommendation`, `reject_ai_recommendation`, `dismiss_ai_recommendation`, `begin_ai_recommendation_execution`, `record_ai_action_attempt`, `record_ai_outcome`, `recover_stalled_ai_execution`); `ai_action_attempts` is append-only, the same immutability guarantee `audit_logs` has. Full reasoning in `docs/AI_APPROVAL_AND_ACTION_SECURITY.md`.
+
+### Server-controlled payload hashing as a tamper-detection anchor
+
+`ai_recommendations.payload_hash` is a `GENERATED ALWAYS AS (...) STORED` column — Postgres computes it, no client or application code can ever supply it. `approve_ai_recommendation()` snapshots it at decision time; `begin_ai_recommendation_execution()` compares that snapshot against the recommendation's *current* hash before allowing execution to start, refusing to proceed on a mismatch. This is what makes "the payload changed after approval" a structurally detectable condition rather than something a careful reviewer has to notice by eye.
+
+### Polymorphic reference validation via one generic trigger
+
+`ai_signals` and `ai_recommendation_evidence` can each reference one of five domain tables (`lead`, `reservation`, `order`, `order_item`, `daily_kpi_snapshot`) through `source_entity_type`/`source_entity_id` — no single foreign key can express that. `validate_ai_source_entity_reference()` (one `BEFORE INSERT/UPDATE` trigger function, attached to both tables) reads the row generically via `to_jsonb(new)` and checks existence + organization match, and — for all five types, including `lead` and `order_item` (via a join to its parent order) — location match, against whichever table `source_entity_type` names, raising `RELATED_ENTITY_MISMATCH` on a cross-tenant, cross-location, or nonexistent reference — the same "schema-level impossibility" property Phase 3's composite FKs give single-table references, extended to a polymorphic case via a trigger.
+
+### Finance redaction: RLS for evidence, rule-authoring discipline for everything else
+
+`ai_recommendation_evidence`'s SELECT policy adds `AND (NOT is_finance_sensitive OR has_permission(organization_id, 'finance.read'))` on top of the ordinary `ai.executive.read` gate. A caller without `finance.read` sees a recommendation's title and summary but not the specific revenue/average-ticket/order-total evidence rows backing it — the redaction happens at the database layer, so no UI component can accidentally leak it by skipping a check. This RLS clause only covers `ai_recommendation_evidence`, though — a Phase 4B review found raw dollar figures leaking into `ai_signals.facts` and one recommendation's `executive_summary`, neither of which RLS redacts. Fixed by removing every finance-sensitive raw value from any field outside an `isFinanceSensitive` evidence row — see `docs/AI_RULES_AND_SIGNALS.md`.
+
+## Phase 4B additions: concurrency, execution-claim, and location-scope hardening
+
+A post-merge principal-engineer security review of PR #19 found several concurrency and scope defects, all fixed forward without weakening any existing test. Full design in `docs/AI_APPROVAL_AND_ACTION_SECURITY.md` and `docs/AI_EXECUTIVE_ARCHITECTURE.md`; summarized here as security-model-relevant facts:
+
+- **Every AI decision function is now an atomic compare-and-swap**, not a read-then-write: `approve_ai_recommendation()`, `reject_ai_recommendation()`, `dismiss_ai_recommendation()`, `begin_ai_recommendation_execution()`, and `record_ai_action_attempt()` each carry every precondition (status, version, expiry, execution token) inside the single `UPDATE ... WHERE ...` that makes the decision, relying on Postgres's default READ COMMITTED isolation to guarantee at most one of two racing statements can ever match.
+- **Execution claims are token-guarded.** `ai_recommendations.execution_token`/`executing_at`/`execution_attempt_number` track who currently holds the claim to execute a recommendation; `record_ai_action_attempt()`/`record_ai_outcome()` refuse to finalize anything without the exact current token, rejecting missing, stale, or mismatched tokens before touching any row.
+- **A database-level duplicate-success constraint** (`idx_ai_action_attempts_success_once`, a partial unique index on `(recommendation_id, payload_hash) WHERE result_status = 'succeeded'`) backstops the token compare-and-swap — at most one successful action attempt can ever exist per recommendation and authoritative payload.
+- **Crash recovery is narrow, permissioned, and audited.** `recover_stalled_ai_execution()` requires `ai.recommendations.manage` (not the broader `ai.actions.approve`) and an execution older than `ai_execution_lease_duration()` (15 minutes) — an ordinary approver cannot reset an in-flight claim, and a recovery attempted before the lease elapses is refused regardless of who calls it.
+- **Executing recommendations are immutable.** `apply_ai_evaluation()` never overwrites a recommendation's payload/evidence/approval relationship while it is `executing` — a materially changed re-evaluation is parked as a separate `:pending-reevaluation` recommendation instead.
+- **Evaluation scope is exact, not best-effort.** A location-specific evaluation run can no longer resolve or expire an organization-wide or sibling-location signal/recommendation/approval — every scope-gating predicate uses NULL-safe exact equality (`location_id is not distinct from p_location_id`).
+
+## Phase 4C additions: atomic action finalization, decision lock order, and evaluation-scope orchestration
+
+A further post-merge review of PR #19 found three more merge-blocking gaps, fixed forward without weakening any existing test. Full design in `docs/AI_APPROVAL_AND_ACTION_SECURITY.md` and `docs/AI_EXECUTIVE_ARCHITECTURE.md`; summarized here as security-model-relevant facts:
+
+- **A domain mutation and its attempt record are now one atomic unit, not two.** `finalize_ai_recommendation_execution(p_recommendation_id, p_execution_token)` performs, in a single transaction: execution-token and status re-validation, loading the action type and payload authoritatively from `ai_recommendations` (never from the client), the exact domain-permission check for that action type, the domain mutation itself, the `ai_action_attempts` insert, the recommendation's `completed`/`failed` transition, and the audit event. A crash or failure at any point after the mutation begins either lands as an honestly-recorded `failed` attempt (a caught business-logic error) or rolls the mutation back entirely (an uncaught failure in the attempt-insert or status-transition step) — there is no window where a mutation can commit with nothing recorded. Proven directly by a rollback test that installs a trigger which deliberately raises during the attempt insert.
+- **The TypeScript action router stays the compiled allow-list; the database stays the authority.** Action modules no longer implement their own `execute()` — each calls the same narrow, token-aware RPC, so no action can introduce an arbitrary database function name or bypass the transactional guarantee above.
+- **Approval decisions and re-evaluation now share one lock order.** `approve_ai_recommendation()` and `reject_ai_recommendation()` lock the recommendation row (`FOR UPDATE`) before deciding the approval, the same order `apply_ai_evaluation()`'s reopening logic already used — two transactions taking locks in a fixed, consistent order can never deadlock against each other, and the approval decision re-verifies the recommendation's organization, `proposed` status, and live payload hash before committing, so no committed state can ever pair an approved approval with a recommendation whose payload has since changed.
+- **Evaluation scope is enforced by rule metadata and the database, not just convention.** Every rule and skill now declares `scope: "organization" | "location" | "both"`; a new orchestrator (`evaluateOrganizationAcrossLocations()`) runs one evaluation per active location plus one organization-scoped evaluation, discovering locations dynamically so a newly added one needs no code change. `apply_ai_evaluation()` independently rejects any signal or recommendation intent whose own `location_id` doesn't exactly match the run's scope — including an explicit `null` during a location-scoped run — before writing anything, so a rule-authoring mistake or an orchestration bug can never produce a mixed-scope row.
+
 ## What's still not covered
 
 - Rate limiting / brute-force protection on `/login` (Supabase Auth's own defaults apply; nothing additional was added).
 - Self-serve organization creation — provisioning a new organization is still a manual, service-role administrative action.
 - Phase 3B domains (inventory, suppliers, menu costing, reviews, staff/tasks, finance) — no tables, policies, or screens exist for any of them yet.
+- A learning/memory loop for the AI Executive — `ai_outcomes` records results for human review, but nothing yet feeds them back into rule weighting or priority scoring.

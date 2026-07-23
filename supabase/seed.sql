@@ -200,3 +200,139 @@ on conflict (id) do nothing;
 -- service-context caller (see 20260722000006_kpi_snapshot_function.sql).
 select public.calculate_daily_kpi_snapshot('00000000-0000-0000-0000-000000000001'::uuid, '2026-07-20'::date, null);
 select public.calculate_daily_kpi_snapshot('00000000-0000-0000-0000-000000000002'::uuid, '2026-07-20'::date, null);
+
+-- AI Executive fixtures (Phase 4A, issue #18) --------------------------------
+-- Applied via the real apply_ai_evaluation() function, not hand-inserted
+-- rows, so seed data can never drift from what that function itself would
+-- produce for the same intents — same principle as the KPI snapshot calls
+-- above. auth.uid() is null in this raw psql/seed context, which
+-- apply_ai_evaluation() treats as a trusted service-context caller, exactly
+-- like calculate_daily_kpi_snapshot(). Uses the same fixed 2026-07-20
+-- anchor as the rest of Phase 3's operational fixtures for deterministic
+-- pgTAP/integration assertions.
+
+-- BOSSA overrides the default unanswered-lead threshold down to 1 (Papai
+-- uses the code-level default), demonstrating a real per-organization
+-- rule config override.
+insert into public.ai_rule_configs (organization_id, rule_key, enabled, config) values
+  ('00000000-0000-0000-0000-000000000001', 'unanswered_leads.v1', true, '{"maxUnanswered": 1}'::jsonb)
+on conflict (organization_id, (coalesce(location_id, '00000000-0000-0000-0000-000000000000'::uuid)), rule_key)
+do update set config = excluded.config, enabled = excluded.enabled;
+
+select public.apply_ai_evaluation(
+  '00000000-0000-0000-0000-000000000001'::uuid,
+  null,
+  '2026-07-20 12:00:00+00'::timestamptz,
+  'seed-fixture.v1',
+  '{
+    "signals": [
+      {
+        "signal_type": "unanswered_leads",
+        "severity": "warning",
+        "title": "1 unanswered lead",
+        "facts": {"count": 1, "lead_ids": ["00000000-0000-0000-0004-000000000001"]},
+        "dedupe_key": "unanswered_leads:00000000-0000-0000-0000-000000000001",
+        "source_entity_type": "lead",
+        "source_entity_id": "00000000-0000-0000-0004-000000000001"
+      }
+    ],
+    "recommendations": [
+      {
+        "dedupe_key": "assign_lead_owner:00000000-0000-0000-0004-000000000001",
+        "recommendation_type": "unanswered_lead_followup",
+        "title": "Follow up with Maria Fernandez",
+        "executive_summary": "Maria Fernandez has been waiting since 09:00 with no assigned owner. Assign an owner so the lead gets a timely response.",
+        "severity": "warning",
+        "priority_score": 70,
+        "recommended_action_type": "assign_lead_owner",
+        "recommended_action_payload": {"leadId": "00000000-0000-0000-0004-000000000001", "ownerUserId": "00000000-0000-0000-0002-000000000001"},
+        "expected_benefit": "Faster first response, lower risk of losing the lead.",
+        "risk_level": "low",
+        "requires_approval": true,
+        "rule_id": "unanswered_leads.v1",
+        "evidence": [
+          {
+            "metric_name": "unanswered_lead_count",
+            "observed_value": {"count": 1},
+            "expected_value": {"maxUnanswered": 1},
+            "source_entity_type": "lead",
+            "source_entity_id": "00000000-0000-0000-0004-000000000001",
+            "calculation_definition": "count(leads where status = new)",
+            "is_finance_sensitive": false
+          }
+        ]
+      },
+      {
+        "dedupe_key": "revenue_below_target:00000000-0000-0000-0000-000000000001:2026-07-20",
+        "recommendation_type": "revenue_below_target",
+        "title": "Revenue is trailing target today",
+        "executive_summary": "Today''s revenue is well below the configured daily target. Review the Finance module for detail.",
+        "severity": "info",
+        "priority_score": 30,
+        "recommended_action_type": "navigate",
+        "recommended_action_payload": {"route": "/bossa/finance"},
+        "expected_benefit": "Owner awareness of a revenue shortfall.",
+        "risk_level": "low",
+        "requires_approval": false,
+        "rule_id": "revenue_target.v1",
+        "evidence": [
+          {
+            "metric_name": "revenue_today",
+            "observed_value": {"amount": 67.50, "currency": "USD"},
+            "expected_value": {"target": 200.00, "currency": "USD"},
+            "calculation_definition": "daily_kpi_snapshots.revenue for snapshot_date = today",
+            "is_finance_sensitive": true
+          }
+        ]
+      }
+    ]
+  }'::jsonb
+);
+
+-- Papai: same rule family, code-level default threshold (no override row).
+select public.apply_ai_evaluation(
+  '00000000-0000-0000-0000-000000000002'::uuid,
+  null,
+  '2026-07-20 12:00:00+00'::timestamptz,
+  'seed-fixture.v1',
+  '{
+    "signals": [
+      {
+        "signal_type": "unanswered_leads",
+        "severity": "info",
+        "title": "1 unanswered lead",
+        "facts": {"count": 1, "lead_ids": ["00000000-0000-0000-0004-000000000004"]},
+        "dedupe_key": "unanswered_leads:00000000-0000-0000-0000-000000000002",
+        "source_entity_type": "lead",
+        "source_entity_id": "00000000-0000-0000-0004-000000000004"
+      }
+    ],
+    "recommendations": [
+      {
+        "dedupe_key": "assign_lead_owner:00000000-0000-0000-0004-000000000004",
+        "recommendation_type": "unanswered_lead_followup",
+        "title": "Follow up with Ronnie Semeleer",
+        "executive_summary": "Ronnie Semeleer has been waiting since 09:30 with no assigned owner.",
+        "severity": "info",
+        "priority_score": 40,
+        "recommended_action_type": "assign_lead_owner",
+        "recommended_action_payload": {"leadId": "00000000-0000-0000-0004-000000000004", "ownerUserId": "00000000-0000-0000-0002-000000000003"},
+        "expected_benefit": "Faster first response.",
+        "risk_level": "low",
+        "requires_approval": true,
+        "rule_id": "unanswered_leads.v1",
+        "evidence": [
+          {
+            "metric_name": "unanswered_lead_count",
+            "observed_value": {"count": 1},
+            "expected_value": {"maxUnanswered": 3},
+            "source_entity_type": "lead",
+            "source_entity_id": "00000000-0000-0000-0004-000000000004",
+            "calculation_definition": "count(leads where status = new)",
+            "is_finance_sensitive": false
+          }
+        ]
+      }
+    ]
+  }'::jsonb
+);

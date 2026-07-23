@@ -51,9 +51,10 @@ Visit `/login` and sign in as one of the seeded dev users below.
 npm run supabase:start     # boot the local stack
 npm run supabase:stop      # stop it
 npm run supabase:reset     # drop, recreate, re-migrate, and re-seed the local database
-npm run supabase:test      # supabase test db — pgTAP cross-tenant security suite
+npm run supabase:test      # supabase test db — pgTAP cross-tenant security suite (rls_cross_tenant.test.sql, operational_security.test.sql, ai_executive_security.test.sql)
 npm run supabase:types     # regenerate lib/supabase/database.types.ts from the local schema
 npm run test:integration   # vitest against the running local instance (needs SUPABASE_URL / SUPABASE_ANON_KEY — `supabase status -o env` prints them)
+npm run ai:evaluate -- --org=<slug> --as-of=<iso>   # manually run the deterministic AI evaluation pipeline for one org — see docs/AI_EXECUTIVE_ARCHITECTURE.md
 ```
 
 ## Adding a migration
