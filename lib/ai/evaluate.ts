@@ -19,6 +19,7 @@ export interface ApplyEvaluationResult {
   signalsUpserted: number;
   signalsResolved: number;
   recommendationsUpserted: number;
+  recommendationsDeferred: number;
   recommendationsExpired: number;
   approvalsExpired: number;
 }
@@ -120,6 +121,7 @@ async function applyEvaluation(
     signals_upserted: number;
     signals_resolved: number;
     recommendations_upserted: number;
+    recommendations_deferred: number;
     recommendations_expired: number;
     approvals_expired: number;
   };
@@ -128,6 +130,7 @@ async function applyEvaluation(
     signalsUpserted: result.signals_upserted,
     signalsResolved: result.signals_resolved,
     recommendationsUpserted: result.recommendations_upserted,
+    recommendationsDeferred: result.recommendations_deferred,
     recommendationsExpired: result.recommendations_expired,
     approvalsExpired: result.approvals_expired,
   };

@@ -44,6 +44,8 @@ export type Database = {
           duration_ms: number | null
           error_code: string | null
           error_message: string | null
+          execution_attempt_number: number | null
+          execution_token: string | null
           id: string
           organization_id: string
           payload_hash: string
@@ -60,6 +62,8 @@ export type Database = {
           duration_ms?: number | null
           error_code?: string | null
           error_message?: string | null
+          execution_attempt_number?: number | null
+          execution_token?: string | null
           id?: string
           organization_id: string
           payload_hash: string
@@ -76,6 +80,8 @@ export type Database = {
           duration_ms?: number | null
           error_code?: string | null
           error_message?: string | null
+          execution_attempt_number?: number | null
+          execution_token?: string | null
           id?: string
           organization_id?: string
           payload_hash?: string
@@ -302,6 +308,9 @@ export type Database = {
           action_schema_version: string
           created_at: string
           dedupe_key: string
+          executing_at: string | null
+          execution_attempt_number: number
+          execution_token: string | null
           executive_summary: string
           expected_benefit: string | null
           expires_at: string | null
@@ -326,6 +335,9 @@ export type Database = {
           action_schema_version?: string
           created_at?: string
           dedupe_key: string
+          executing_at?: string | null
+          execution_attempt_number?: number
+          execution_token?: string | null
           executive_summary: string
           expected_benefit?: string | null
           expires_at?: string | null
@@ -350,6 +362,9 @@ export type Database = {
           action_schema_version?: string
           created_at?: string
           dedupe_key?: string
+          executing_at?: string | null
+          execution_attempt_number?: number
+          execution_token?: string | null
           executive_summary?: string
           expected_benefit?: string | null
           expires_at?: string | null
@@ -1305,6 +1320,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ai_execution_lease_duration: {
+        Args: Record<PropertyKey, never>
+        Returns: unknown
+      }
       apply_ai_evaluation: {
         Args: {
           p_as_of: string
@@ -1344,6 +1363,9 @@ export type Database = {
           action_schema_version: string
           created_at: string
           dedupe_key: string
+          executing_at: string | null
+          execution_attempt_number: number
+          execution_token: string | null
           executive_summary: string
           expected_benefit: string | null
           expires_at: string | null
@@ -1407,6 +1429,9 @@ export type Database = {
           action_schema_version: string
           created_at: string
           dedupe_key: string
+          executing_at: string | null
+          execution_attempt_number: number
+          execution_token: string | null
           executive_summary: string
           expected_benefit: string | null
           expires_at: string | null
@@ -1476,6 +1501,7 @@ export type Database = {
           p_duration_ms?: number
           p_error_code?: string
           p_error_message?: string
+          p_execution_token: string
           p_recommendation_id: string
           p_result_detail?: Json
           p_result_status: string
@@ -1489,6 +1515,8 @@ export type Database = {
           duration_ms: number | null
           error_code: string | null
           error_message: string | null
+          execution_attempt_number: number | null
+          execution_token: string | null
           id: string
           organization_id: string
           payload_hash: string
@@ -1508,6 +1536,7 @@ export type Database = {
           p_action_attempt_id: string
           p_after_snapshot?: Json
           p_before_snapshot?: Json
+          p_execution_token: string
           p_failure_code?: string
           p_failure_message?: string
           p_human_notes?: string
@@ -1547,6 +1576,42 @@ export type Database = {
           p_organization_id: string
         }
         Returns: string
+      }
+      recover_stalled_ai_execution: {
+        Args: { p_recommendation_id: string }
+        Returns: {
+          action_schema_version: string
+          created_at: string
+          dedupe_key: string
+          executing_at: string | null
+          execution_attempt_number: number
+          execution_token: string | null
+          executive_summary: string
+          expected_benefit: string | null
+          expires_at: string | null
+          id: string
+          location_id: string | null
+          organization_id: string
+          payload_hash: string | null
+          priority_score: number
+          recommendation_type: string
+          recommended_action_payload: Json
+          recommended_action_type: string
+          requires_approval: boolean
+          risk_level: string
+          rule_id: string
+          rule_version: string
+          severity: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ai_recommendations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       reject_ai_recommendation: {
         Args: {

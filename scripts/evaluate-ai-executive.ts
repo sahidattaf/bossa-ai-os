@@ -58,7 +58,7 @@ async function main() {
       const result = await evaluateOrganization(supabase, organization.id, { asOf: evaluationAsOf });
       console.log(
         `  ✓ ${organization.slug}: signals +${result.signalsUpserted}/-${result.signalsResolved}, ` +
-          `recommendations +${result.recommendationsUpserted}/-${result.recommendationsExpired}, ` +
+          `recommendations +${result.recommendationsUpserted} (${result.recommendationsDeferred} deferred)/-${result.recommendationsExpired}, ` +
           `approvals expired ${result.approvalsExpired}`,
       );
     } catch (error) {

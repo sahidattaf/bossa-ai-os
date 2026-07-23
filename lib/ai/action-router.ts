@@ -95,13 +95,21 @@ export async function executeAiRecommendation(
   }
 
   // Durable step 1 (already happened, separately): approval. Durable step 2
-  // starts here — server-verifies eligibility and marks 'executing' before
-  // any domain mutation is attempted.
-  const { error: beginError } = await supabase.rpc("begin_ai_recommendation_execution", {
+  // starts here — server-verifies eligibility and atomically claims the
+  // approved/failed -> executing transition, minting a fresh
+  // execution_token. A concurrent second claim attempt on the same
+  // recommendation raises here (CONFLICT) before any domain mutation is
+  // ever attempted.
+  const { data: claimed, error: beginError } = await supabase.rpc("begin_ai_recommendation_execution", {
     p_recommendation_id: recommendationId,
   });
   if (beginError) throw toOperationalError(beginError);
 
+  // execution_token is nullable in the column's generated type (it's cleared
+  // by recover_stalled_ai_execution()), but begin_ai_recommendation_execution()
+  // always mints a fresh one as part of the same atomic claim this call just
+  // won — guaranteed non-null immediately after a successful claim.
+  const executionToken = claimed.execution_token!;
   const startedAt = Date.now();
 
   try {
@@ -109,6 +117,7 @@ export async function executeAiRecommendation(
 
     const { data: attempt, error: attemptError } = await supabase.rpc("record_ai_action_attempt", {
       p_recommendation_id: recommendationId,
+      p_execution_token: executionToken,
       p_result_status: "succeeded",
       p_result_detail: resultDetail as unknown as Json,
       p_duration_ms: Date.now() - startedAt,
@@ -123,6 +132,7 @@ export async function executeAiRecommendation(
 
     const { data: attempt, error: attemptError } = await supabase.rpc("record_ai_action_attempt", {
       p_recommendation_id: recommendationId,
+      p_execution_token: executionToken,
       p_result_status: "failed",
       p_error_code: operationalError.code,
       p_error_message: operationalError.message,
@@ -132,4 +142,23 @@ export async function executeAiRecommendation(
 
     return { status: "failed", actionAttemptId: attempt.id, error: operationalError };
   }
+}
+
+/**
+ * Narrow, permissioned recovery from a crashed/abandoned execution claim
+ * (issue: a process that crashes between begin_ai_recommendation_execution()
+ * and record_ai_action_attempt() leaves a recommendation stuck 'executing'
+ * with no normal retry path). Requires ai.recommendations.manage and an
+ * execution older than ai_execution_lease_duration() — see
+ * docs/AI_APPROVAL_AND_ACTION_SECURITY.md.
+ */
+export async function recoverStalledAiExecution(
+  supabase: SupabaseDb,
+  recommendationId: string,
+): Promise<Database["public"]["Tables"]["ai_recommendations"]["Row"]> {
+  const { data, error } = await supabase.rpc("recover_stalled_ai_execution", {
+    p_recommendation_id: recommendationId,
+  });
+  if (error) throw toOperationalError(error);
+  return data;
 }
