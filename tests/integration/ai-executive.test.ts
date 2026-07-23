@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { executeAiRecommendation } from "@/lib/ai/action-router";
+import { executeAiRecommendation, recoverStalledAiExecution } from "@/lib/ai/action-router";
 import { approveRecommendation, rejectRecommendation } from "@/lib/ai/approvals";
 import { evaluateOrganization } from "@/lib/ai/evaluate";
 import { getRecommendationDetail, listPendingApprovals, listRecommendations } from "@/lib/ai/recommendations";
@@ -22,6 +22,15 @@ const SUPABASE_ANON_KEY =
   process.env.SUPABASE_ANON_KEY ??
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
 
+// Well-known, publicly documented local-dev fixture key (paired with
+// SUPABASE_ANON_KEY above, both minted from the same "supabase-demo" JWT
+// secret every `supabase init` scaffold ships with) — never a real secret.
+// In CI, `supabase status -o env` exports the real local SERVICE_ROLE_KEY
+// before this test file runs; this constant is only the local-dev fallback.
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SERVICE_ROLE_KEY ??
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
+
 const DEV_PASSWORD = "DevPassword123!";
 const BOSSA_ORG_ID = "00000000-0000-0000-0000-000000000001";
 const PAPAI_ORG_ID = "00000000-0000-0000-0000-000000000002";
@@ -32,6 +41,15 @@ async function signInAs(email: string): Promise<SupabaseClient<Database>> {
   const { error } = await client.auth.signInWithPassword({ email, password: DEV_PASSWORD });
   if (error) throw new Error(`Failed to sign in as ${email}: ${error.message}`);
   return client;
+}
+
+/** RLS-bypassing client, used only to simulate a lease elapsing (backdating
+ * executing_at) — the same role every `supabase start` local stack prints,
+ * never used to bypass any assertion this suite is actually testing. */
+function createServiceRoleTestClient(): SupabaseClient<Database> {
+  return createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 }
 
 async function applyTestIntent(
@@ -297,5 +315,258 @@ describe("AI Executive (Phase 4A)", () => {
     await expect(executeAiRecommendation(bossaOwner, target.recommendation.id)).rejects.toSatisfy(
       (error: unknown) => isOperationalError(error),
     );
+  });
+
+  // ==========================================================================
+  // Concurrency hardening (post-merge security review of PR #19). These tests
+  // fire two genuinely concurrent network requests via Promise.allSettled
+  // against the same live Postgres instance — the one thing pgTAP's
+  // single-transaction, sequential model cannot express. See
+  // supabase/tests/ai_executive_concurrency.test.sql for the equivalent
+  // sequential (necessary-but-not-sufficient) proof of each guard's logic.
+  // ==========================================================================
+
+  it("under a concurrent approve/approve race, exactly one decision succeeds and no duplicate audit event is written", async () => {
+    const lead = await createLead(bossaOwner, BOSSA_ORG_ID, {
+      leadType: "general",
+      source: "phone",
+      contactName: "Integration Test Race Approve",
+      phone: `+599910${Date.now() % 100000}`,
+    });
+
+    const dedupeKey = `race_approve_test:${Date.now()}`;
+    await applyTestIntent(bossaOwner, BOSSA_ORG_ID, dedupeKey, "assign_lead_owner", {
+      leadId: lead.id,
+      ownerUserId: BOSSA_OWNER_ID,
+    });
+
+    const pending = await listPendingApprovals(bossaOwner, BOSSA_ORG_ID);
+    const target = pending.find((p) => p.recommendation.dedupe_key === dedupeKey)!;
+
+    const results = await Promise.allSettled([
+      approveRecommendation(bossaOwner, target.approval.id, target.approval.version),
+      approveRecommendation(bossaOwner, target.approval.id, target.approval.version),
+    ]);
+
+    const fulfilled = results.filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof approveRecommendation>>> => r.status === "fulfilled");
+    const rejected = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(isOperationalError(rejected[0]!.reason)).toBe(true);
+
+    const { data: approvals } = await bossaOwner.from("ai_approvals").select("status, version").eq("id", target.approval.id);
+    expect(approvals).toHaveLength(1);
+    expect(approvals?.[0]?.status).toBe("approved");
+    expect(approvals?.[0]?.version).toBe(target.approval.version + 1);
+
+    const { data: auditEvents } = await bossaOwner
+      .from("audit_logs")
+      .select("id")
+      .eq("action", "ai_recommendation.approved")
+      .eq("entity_id", target.recommendation.id);
+    expect(auditEvents).toHaveLength(1);
+  });
+
+  it("under a concurrent approve/reject race, exactly one decision succeeds", async () => {
+    const lead = await createLead(bossaOwner, BOSSA_ORG_ID, {
+      leadType: "general",
+      source: "phone",
+      contactName: "Integration Test Race Approve-Reject",
+      phone: `+599911${Date.now() % 100000}`,
+    });
+
+    const dedupeKey = `race_approve_reject_test:${Date.now()}`;
+    await applyTestIntent(bossaOwner, BOSSA_ORG_ID, dedupeKey, "assign_lead_owner", {
+      leadId: lead.id,
+      ownerUserId: BOSSA_OWNER_ID,
+    });
+
+    const pending = await listPendingApprovals(bossaOwner, BOSSA_ORG_ID);
+    const target = pending.find((p) => p.recommendation.dedupe_key === dedupeKey)!;
+
+    const results = await Promise.allSettled([
+      approveRecommendation(bossaOwner, target.approval.id, target.approval.version),
+      rejectRecommendation(bossaOwner, target.approval.id, target.approval.version, "Racing rejection"),
+    ]);
+
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    const rejected = results.filter((r) => r.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+
+    const { data: approvals } = await bossaOwner.from("ai_approvals").select("status, version").eq("id", target.approval.id);
+    expect(approvals).toHaveLength(1);
+    expect(["approved", "rejected"]).toContain(approvals?.[0]?.status);
+    expect(approvals?.[0]?.version).toBe(target.approval.version + 1);
+  });
+
+  it("under a concurrent execute/execute race, exactly one execution claim and one domain mutation occur", async () => {
+    const lead = await createLead(bossaOwner, BOSSA_ORG_ID, {
+      leadType: "general",
+      source: "phone",
+      contactName: "Integration Test Race Execute",
+      phone: `+599912${Date.now() % 100000}`,
+    });
+
+    const dedupeKey = `race_execute_test:${Date.now()}`;
+    await applyTestIntent(bossaOwner, BOSSA_ORG_ID, dedupeKey, "assign_lead_owner", {
+      leadId: lead.id,
+      ownerUserId: BOSSA_OWNER_ID,
+    });
+
+    const pending = await listPendingApprovals(bossaOwner, BOSSA_ORG_ID);
+    const target = pending.find((p) => p.recommendation.dedupe_key === dedupeKey)!;
+    await approveRecommendation(bossaOwner, target.approval.id, target.approval.version);
+
+    const results = await Promise.allSettled([
+      executeAiRecommendation(bossaOwner, target.recommendation.id),
+      executeAiRecommendation(bossaOwner, target.recommendation.id),
+    ]);
+
+    // Whichever call loses the atomic claim raises before any domain
+    // mutation is attempted at all (a thrown error, not a {status:"failed"}
+    // result) — the other either succeeds outright or, if it lost the claim
+    // by a hair after already starting, still never produces a second
+    // domain mutation (proven below via the lead + action-attempt counts).
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    expect(fulfilled.length).toBeGreaterThanOrEqual(1);
+
+    const { data: recommendation } = await bossaOwner
+      .from("ai_recommendations")
+      .select("status")
+      .eq("id", target.recommendation.id)
+      .single();
+    expect(recommendation?.status).toBe("completed");
+
+    const { data: attempts } = await bossaOwner
+      .from("ai_action_attempts")
+      .select("id, result_status")
+      .eq("recommendation_id", target.recommendation.id);
+    expect(attempts).toHaveLength(1);
+    expect(attempts?.[0]?.result_status).toBe("succeeded");
+
+    const { data: updatedLead } = await bossaOwner.from("leads").select("owner_user_id").eq("id", lead.id).single();
+    expect(updatedLead?.owner_user_id).toBe(BOSSA_OWNER_ID);
+  });
+
+  it("keeps an executing recommendation byte-for-byte stable while a re-evaluation produces a materially changed intent, and the changed intent is not lost", async () => {
+    const lead = await createLead(bossaOwner, BOSSA_ORG_ID, {
+      leadType: "general",
+      source: "phone",
+      contactName: "Integration Test Immutability",
+      phone: `+599913${Date.now() % 100000}`,
+    });
+
+    const dedupeKey = `immutable_it_test:${Date.now()}`;
+    await applyTestIntent(bossaOwner, BOSSA_ORG_ID, dedupeKey, "assign_lead_owner", {
+      leadId: lead.id,
+      ownerUserId: BOSSA_OWNER_ID,
+    });
+
+    const pending = await listPendingApprovals(bossaOwner, BOSSA_ORG_ID);
+    const target = pending.find((p) => p.recommendation.dedupe_key === dedupeKey)!;
+    await approveRecommendation(bossaOwner, target.approval.id, target.approval.version);
+
+    // Claim execution directly (bypassing executeAiRecommendation, which
+    // would finalize it immediately) so the recommendation stays 'executing'
+    // while the re-evaluation below runs against it.
+    const { data: claimed, error: beginError } = await bossaOwner.rpc("begin_ai_recommendation_execution", {
+      p_recommendation_id: target.recommendation.id,
+    });
+    expect(beginError).toBeNull();
+    const executionToken = claimed!.execution_token!;
+    const originalPayloadHash = claimed!.payload_hash;
+    const originalPayload = claimed!.recommended_action_payload;
+
+    // A materially different intent for the SAME dedupe_key.
+    await applyTestIntent(bossaOwner, BOSSA_ORG_ID, dedupeKey, "assign_lead_owner", {
+      leadId: lead.id,
+      ownerUserId: "00000000-0000-0000-0002-000000000002",
+    });
+
+    const { data: stillExecuting } = await bossaOwner
+      .from("ai_recommendations")
+      .select("status, payload_hash, recommended_action_payload")
+      .eq("id", target.recommendation.id)
+      .single();
+    expect(stillExecuting?.status).toBe("executing");
+    expect(stillExecuting?.payload_hash).toBe(originalPayloadHash);
+    expect(stillExecuting?.recommended_action_payload).toEqual(originalPayload);
+
+    const { data: deferred } = await bossaOwner
+      .from("ai_recommendations")
+      .select("status, recommended_action_payload")
+      .eq("dedupe_key", `${dedupeKey}:pending-reevaluation`)
+      .single();
+    expect(deferred?.status).toBe("proposed");
+    expect((deferred?.recommended_action_payload as { ownerUserId?: string } | null)?.ownerUserId).toBe(
+      "00000000-0000-0000-0002-000000000002",
+    );
+
+    // The original, untouched execution finalizes normally.
+    const { error: finalizeError } = await bossaOwner.rpc("record_ai_action_attempt", {
+      p_recommendation_id: target.recommendation.id,
+      p_execution_token: executionToken,
+      p_result_status: "succeeded",
+      p_result_detail: {} as unknown as Json,
+    });
+    expect(finalizeError).toBeNull();
+
+    const { data: updatedLead } = await bossaOwner.from("leads").select("owner_user_id").eq("id", lead.id).single();
+    expect(updatedLead?.owner_user_id).toBe(BOSSA_OWNER_ID);
+  });
+
+  it("recovers a crashed/abandoned execution claim and allows a clean retry afterward", async () => {
+    const lead = await createLead(bossaOwner, BOSSA_ORG_ID, {
+      leadType: "general",
+      source: "phone",
+      contactName: "Integration Test Recovery",
+      phone: `+599914${Date.now() % 100000}`,
+    });
+
+    const dedupeKey = `recovery_it_test:${Date.now()}`;
+    await applyTestIntent(bossaOwner, BOSSA_ORG_ID, dedupeKey, "assign_lead_owner", {
+      leadId: lead.id,
+      ownerUserId: BOSSA_OWNER_ID,
+    });
+
+    const pending = await listPendingApprovals(bossaOwner, BOSSA_ORG_ID);
+    const target = pending.find((p) => p.recommendation.dedupe_key === dedupeKey)!;
+    await approveRecommendation(bossaOwner, target.approval.id, target.approval.version);
+
+    // Simulate a crash: claim execution directly and never finalize it — as
+    // if the process died immediately after begin_ai_recommendation_execution().
+    const { error: beginError } = await bossaOwner.rpc("begin_ai_recommendation_execution", {
+      p_recommendation_id: target.recommendation.id,
+    });
+    expect(beginError).toBeNull();
+
+    await expect(recoverStalledAiExecution(bossaOwner, target.recommendation.id)).rejects.toSatisfy(
+      (error: unknown) => isOperationalError(error) && error.code === "CONFLICT",
+    );
+
+    // Simulate the execution lease elapsing — the only deterministic way to
+    // test a time-based lease without a real 15-minute wait. Service-role
+    // only, since ai_recommendations has no authenticated UPDATE grant at all.
+    const serviceRole = createServiceRoleTestClient();
+    const { error: backdateError } = await serviceRole
+      .from("ai_recommendations")
+      .update({ executing_at: new Date(Date.now() - 20 * 60 * 1000).toISOString() })
+      .eq("id", target.recommendation.id);
+    expect(backdateError).toBeNull();
+
+    await expect(recoverStalledAiExecution(bossaStaff, target.recommendation.id)).rejects.toSatisfy(
+      (error: unknown) => isOperationalError(error) && error.code === "PERMISSION_DENIED",
+    );
+
+    const recovered = await recoverStalledAiExecution(bossaOwner, target.recommendation.id);
+    expect(recovered.status).toBe("failed");
+    expect(recovered.execution_token).toBeNull();
+
+    const execution = await executeAiRecommendation(bossaOwner, target.recommendation.id);
+    expect(execution.status).toBe("succeeded");
+
+    const { data: updatedLead } = await bossaOwner.from("leads").select("owner_user_id").eq("id", lead.id).single();
+    expect(updatedLead?.owner_user_id).toBe(BOSSA_OWNER_ID);
   });
 });
