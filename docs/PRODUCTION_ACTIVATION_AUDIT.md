@@ -9,11 +9,8 @@ Phase 4.5 / 3B Lane A (issue #20). This is an audit report, not a runbook — fo
 - Phase 1–4 are merged to `main`; this audit runs from `feat/phase-4-5-production-core-ops`.
 - The deployed Vercel application presents the BOSSA/Papai tenant selector at `/` regardless of configuration — see "Root page always renders the mock tenant list" below for the repository-level reason.
 - The repository defaults to `mock` mode unless `DASHBOARD_DATA_PROVIDER=supabase` is explicitly set (server-only env var, `lib/dashboard/get-data-provider.ts`).
-- Supabase project `bossa-ai-os` (`oqmftkttkfktyzefswpz`) was inactive; restoration was started and reached `COMING_UP` during the prior audit pass (per issue #20's tracked comment).
-- Remote migration history on `bossa-ai-os` returned **0 migrations**; the `public` schema returned **0 tables** at that check.
-- A second, separately inactive Supabase project, **`Bossa Asado i Mar`**, exists and has not yet been inspected. It must not be assumed empty, abandoned, or safe to ignore.
-
-**A hard limitation of this audit:** it was performed from a working environment with no Supabase CLI authentication (no `SUPABASE_ACCESS_TOKEN`, no linked project state, `supabase` binary not pre-installed) and no Supabase Management API credentials. Every fact above about the live state of either Supabase project comes from Sahid's own prior investigation (recorded verbatim in the issue #20 tracking comment), not from a query this audit ran itself. Everything in this document about the **repository** was verified directly by reading the actual files; everything about the **live Supabase projects** is reported as given and flagged for direct verification before any binding decision (§3).
+- **Both candidate Supabase projects have now been directly inspected, read-only, and are `ACTIVE_HEALTHY`.** Full comparison and the resulting locked decision are in §3 — this is no longer a provisional lean or a pending item.
+- **Neither live project matches the repository's current 33-migration, 25-table Phase 2–4 schema.** Both carry their own, unrelated legacy schema and legacy data that predates this repository's Phase 1–4 work. This is the single most important fact for Lane A: a plain `supabase db push` must not be run against either project as-is (§3, §4).
 
 ---
 
@@ -78,37 +75,48 @@ Neither Phase 3 nor Phase 4 enabled a scheduler (no Vercel Cron, no Supabase sch
 
 ## 2. Overall assessment
 
-The repository's security architecture — RLS enabled and forced everywhere, a permission-aware model, typed operational errors, status machines, append-only audit logging — is already production-shaped and requires **no schema changes** for Lane A. What was missing was entirely process and configuration: a documented remote-migration procedure, a real-tenant bootstrap strategy kept separate from dev fixtures, an environment-variable and auth checklist (with one real naming error corrected), a rollback/backup posture, and a smoke-test checklist. This PR adds exactly those, and nothing else.
+The repository's security architecture — RLS enabled and forced everywhere, a permission-aware model, typed operational errors, status machines, append-only audit logging — is already production-shaped and requires **no changes to this repository's own migrations** for Lane A. What was missing was entirely process, configuration, and — now that both live projects have been inspected — **legacy-data reconciliation**: a documented remote-migration procedure, a real-tenant bootstrap strategy kept separate from dev fixtures, an environment-variable and auth checklist (with one real naming error corrected), a rollback/backup posture, a smoke-test checklist, and (newly required by the verified findings in §3) a legacy-preservation gate and a migration-collision decision before `bossa-ai-os`'s existing legacy tables can coexist with this repository's schema. This PR adds the documentation and the read-only export tooling for all of that — it does not execute any of it.
 
 ---
 
-## 3. Supabase project comparison — decision framework
+## 3. Supabase project comparison — verified, complete
 
-This audit could not run the checks below itself (§ "hard limitation," above). Sahid should either run each row against **both** projects and report back, or grant a scoped Supabase access token so a follow-up session can run the read-only checks directly.
+Both projects were inspected directly, read-only (no writes, no DDL, no migrations applied). Verified findings:
 
-| Axis | What to check | How |
-| --- | --- | --- |
-| Existing tables/migrations | Row/table count, migration history | Dashboard → Table Editor; `supabase migration list --linked` |
-| Existing auth users | Any real (non-test) accounts already registered | Dashboard → Authentication → Users |
-| Existing business data | Any populated tables with real BOSSA/Papai data | Table Editor row counts on any non-empty table |
-| Project naming / repo alignment | Does the project's name/ref match `supabase/config.toml`'s `project_id = "bossa-ai-os"`? | Dashboard → Project Settings → General |
-| Migration risk | Would `supabase db push` collide with pre-existing objects? | `supabase db diff --linked` before any push |
-| Data-loss risk | Does the project hold real, non-reproducible business data a push/reset could endanger? | Manual review of any populated tables found above |
-| Environment-variable changes | Project URL / publishable key / secret key all differ per project | Dashboard → Project Settings → API |
-| Rollback complexity | Forward-migration fix, or manual DDL/data surgery? | Depends on findings above |
+### `bossa-ai-os` (project ref `oqmftkttkfktyzefswpz`)
 
-**Provisional lean, not a decision:** `bossa-ai-os` matches the repository's own `project_id` naming exactly and currently has zero migrations and zero tables — a `supabase link` + `supabase db push` onto it carries zero migration risk and zero data-loss risk by construction. This makes it the structurally safer target *if* `Bossa Asado i Mar` is confirmed to hold no real, unrecoverable business data. This is decision **D1** — see `docs/PRODUCTION_DEPLOYMENT.md`'s "Decisions requiring approval" section. No migration or bootstrap step in this PR depends on D1 being resolved yet; the runbook documents the procedure generically as `<chosen-project-ref>`.
+- **Status:** `ACTIVE_HEALTHY`.
+- **Legacy migration history** (7 migrations, none related to this repository's Phase 1–4 schema):
+  `20260524154102_init_bossa_ai_os_core`, `20260524160705_harden_set_updated_at_search_path`, `20260524165824_enable_readonly_dashboard_tables`, `20260524182611_enable_operator_input_writes`, `20260524184236_harden_operator_helper_function_access`, `20260524184304_move_operator_helper_to_private_schema`, `20260524191621_enable_campaign_content_calendar_writes`.
+- **Legacy public tables:** `campaigns`, `weekly_briefs`, `whatsapp_leads`, `orders`, `menu_items`, `bookings`, `users_profiles`, `kpi_daily`, `content_items`, `decision_log`, `agent_runs`.
+- **Verified live row counts:** `auth.users` 1 · `campaigns` 3 · `weekly_briefs` 1 · `kpi_daily` 1 · `decision_log` 2 · every other inspected public table 0.
+
+### `Bossa Asado i Mar` (project ref `zgfncoexiqnqeqaxpqdy`)
+
+- **Status:** `ACTIVE_HEALTHY`.
+- **Tracked migrations:** 0.
+- **Public tables:** `bossa_leads` only.
+- **Verified live row counts:** `auth.users` 0 · `bossa_leads` 8.
+
+### Collision risk — this is the finding that matters most for Lane A
+
+`bossa-ai-os`'s existing legacy schema already has tables literally named **`orders`** and **`menu_items`**. This repository's own migrations create a `public.orders` table (Phase 3, `leads`/`reservations`/`orders`/`order_items`) with an entirely different shape, and Lane B will eventually add its own `menu_items`. **Running `supabase db push` against `bossa-ai-os` as it exists today will not cleanly apply** — it will either fail outright on the name collision or, worse, partially succeed against an incompatible pre-existing table. This must be resolved before any migration is pushed (§4 of `docs/PRODUCTION_DEPLOYMENT.md`, "Migration collision decision").
+
+### D1 — locked
+
+**`bossa-ai-os` is the permanent multi-tenant Hospitality OS backend**, subject to complete preservation/export and reconciliation of every legacy row before any cleanup of the colliding legacy objects. `Bossa Asado i Mar` remains a **read-only legacy/source project** until its 8 `bossa_leads` rows are exported, mapped, and reconciled — it is not, and will not become, the platform backend. See `docs/PRODUCTION_DEPLOYMENT.md`'s "Legacy Preservation Gate" and "Migration collision decision" sections for exactly what must happen, in order, before `bossa-ai-os`'s legacy objects can be touched. **This PR does not export, migrate, or delete anything in either project** — it documents the gate and ships the read-only export tooling only.
 
 ---
 
 ## 4. Discovered risks
 
-1. **Second project uninspected** — proceeding to link/push before `Bossa Asado i Mar` is checked risks abandoning or duplicating real legacy data.
-2. **Unknown backup/PITR posture** — the chosen project's backup tier and post-restoration backup history are unverified.
+1. **`bossa-ai-os` carries a colliding legacy schema** (`orders`, `menu_items`, and 9 other legacy tables) that will conflict with this repository's own Phase 3 `orders` table and Lane B's future `menu_items` table — the single biggest blocker to a naive `supabase db push`. Resolved by the "Migration collision decision" (two documented paths, neither executed in this PR) and the "Legacy Preservation Gate" (mandatory export before any cleanup) in `docs/PRODUCTION_DEPLOYMENT.md`.
+2. **Unknown backup/PITR posture** — the chosen project's backup tier and backup history are still unverified; this remains open even though D1 is now locked.
 3. **Environment-variable naming mismatch** between issue #20 and the real repository convention (corrected above; must not be reintroduced in the Vercel dashboard).
-4. **Root page never reflects cutover state** — cosmetic, not a security issue, tracked as a fast-follow decision.
-5. **Public self-signup is enabled** with email confirmation disabled — a real production decision, not yet made (see runbook).
-6. **No production bootstrap script existed before this PR** — without one, there was no safe, repeatable, idempotent way to create real BOSSA/Papai organizations and owner memberships.
-7. **`DASHBOARD_DATA_PROVIDER=supabase` is a single global switch** — there is no gradual/canary cutover path in this repository today; the first real flip on the production Vercel project *is* the cutover.
+4. **Root page never reflects cutover state** — cosmetic, not a security issue, tracked as a fast-follow decision (D3, still open).
+5. ~~Public self-signup enabled~~ — **locked (D2): production is invite-only, public self-signup must be disabled.** No longer an open risk, only a configuration step to execute in the runbook.
+6. **A production bootstrap script now exists** (`scripts/bootstrap-production-tenants.ts`, added in this PR's prior commits) but has not yet been run against the real, chosen project — it remains a documented, unexecuted procedure until the collision decision and legacy export are both complete.
+7. **`DASHBOARD_DATA_PROVIDER=supabase` is a single global switch** — there is no gradual/canary cutover path in this repository today; the first real flip on the production Vercel project *is* the cutover, and per D5 it may only happen after schema readiness, tenant bootstrap, auth configuration, smoke-testing readiness, and documented rollback readiness are all in place.
 8. **Auth redirect URLs for the production domain are unset** anywhere reachable from the repository — left at defaults, magic-link/password-reset flows would redirect to `localhost`.
 9. **No scheduler exists for KPI/AI evaluation** — after cutover, both must be run manually at least once for the smoke gate, and an operational owner is needed going forward.
+10. **8 real `bossa_leads` rows in `Bossa Asado i Mar` are not yet reconciled** into this repository's `leads` table shape — until they are, that project must stay read-only and must not be decommissioned or written to.
