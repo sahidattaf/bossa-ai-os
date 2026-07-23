@@ -121,6 +121,8 @@ npm run dev
 Sign in at `/login` as a seeded dev user (`owner@bossa.test` / `DevPassword123!`, see `docs/SUPABASE_OPERATIONS.md` for the full list — local/dev fixtures only, never real credentials). Full operational detail:
 
 - [`docs/SUPABASE_OPERATIONS.md`](docs/SUPABASE_OPERATIONS.md) — local setup, migrations, seeded users, rollback/recovery, linking a real project
+- [`docs/PRODUCTION_DEPLOYMENT.md`](docs/PRODUCTION_DEPLOYMENT.md) — the full production activation runbook: remote migrations, real-tenant bootstrap, environment variables, auth configuration, cutover sequencing, smoke tests, rollback
+- [`docs/PRODUCTION_ACTIVATION_AUDIT.md`](docs/PRODUCTION_ACTIVATION_AUDIT.md) — the audit findings the runbook above is based on
 - [`docs/SECURITY_MODEL.md`](docs/SECURITY_MODEL.md) — threat model, the full RLS policy inventory, and why each deliberate exception exists
 - [`docs/PHASE_2_IMPLEMENTATION_REPORT.md`](docs/PHASE_2_IMPLEMENTATION_REPORT.md) / [`docs/PHASE_3_IMPLEMENTATION_REPORT.md`](docs/PHASE_3_IMPLEMENTATION_REPORT.md) / [`docs/PHASE_4_IMPLEMENTATION_REPORT.md`](docs/PHASE_4_IMPLEMENTATION_REPORT.md) — what shipped, validation results
 - [`docs/OPERATIONAL_DATA_MODEL.md`](docs/OPERATIONAL_DATA_MODEL.md) — the Phase 3 `leads`/`reservations`/`orders`/`order_items`/`daily_kpi_snapshots` schema
