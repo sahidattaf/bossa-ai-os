@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { executeAiRecommendation, recoverStalledAiExecution } from "@/lib/ai/action-router";
 import { approveRecommendation, rejectRecommendation } from "@/lib/ai/approvals";
 import { evaluateOrganization } from "@/lib/ai/evaluate";
+import { evaluateOrganizationAcrossLocations } from "@/lib/ai/orchestrate";
 import { getRecommendationDetail, listPendingApprovals, listRecommendations } from "@/lib/ai/recommendations";
 import { isOperationalError } from "@/lib/errors";
 import { createLead } from "@/lib/operations/leads";
@@ -107,8 +108,13 @@ describe("AI Executive (Phase 4A)", () => {
   it("deterministic evaluation generates isolated recommendations for BOSSA and Papai from the seeded fixtures", async () => {
     const asOf = new Date("2026-07-20T12:00:00Z");
 
-    await evaluateOrganization(bossaOwner, BOSSA_ORG_ID, { asOf });
-    await evaluateOrganization(papaiOwner, PAPAI_ORG_ID, { asOf });
+    // Most of the rule catalog is location-scoped (issue: exact evaluation
+    // orchestration) — the orchestrator runs one evaluation per active
+    // location plus one organization-wide evaluation, so both location- and
+    // organization-scoped rules actually fire, matching real usage
+    // (scripts/evaluate-ai-executive.ts uses the same entry point).
+    await evaluateOrganizationAcrossLocations(bossaOwner, BOSSA_ORG_ID, { asOf });
+    await evaluateOrganizationAcrossLocations(papaiOwner, PAPAI_ORG_ID, { asOf });
 
     const [bossaRecs, papaiRecs] = await Promise.all([
       listRecommendations(bossaOwner, BOSSA_ORG_ID),
@@ -400,6 +406,65 @@ describe("AI Executive (Phase 4A)", () => {
     expect(approvals?.[0]?.version).toBe(target.approval.version + 1);
   });
 
+  it("under a repeated concurrent approve/re-evaluation race, every result is either the new payload approved with a matching hash, or the approval reopened", async () => {
+    // Both approve_ai_recommendation() and apply_ai_evaluation() now lock
+    // the recommendation row first, in the same order, before touching
+    // ai_approvals — run the race several times to exercise both possible
+    // orderings rather than asserting a single expected outcome.
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const lead = await createLead(bossaOwner, BOSSA_ORG_ID, {
+        leadType: "general",
+        source: "phone",
+        contactName: `Integration Test Race Approve-Evaluate ${attempt}`,
+        phone: `+599915${(Date.now() + attempt) % 100000}`,
+      });
+
+      const dedupeKey = `race_approve_evaluate_test:${Date.now()}_${attempt}`;
+      await applyTestIntent(bossaOwner, BOSSA_ORG_ID, dedupeKey, "assign_lead_owner", {
+        leadId: lead.id,
+        ownerUserId: BOSSA_OWNER_ID,
+      });
+
+      const pending = await listPendingApprovals(bossaOwner, BOSSA_ORG_ID);
+      const target = pending.find((p) => p.recommendation.dedupe_key === dedupeKey)!;
+      const changedOwnerId = "00000000-0000-0000-0002-000000000002";
+
+      const results = await Promise.allSettled([
+        approveRecommendation(bossaOwner, target.approval.id, target.approval.version),
+        applyTestIntent(bossaOwner, BOSSA_ORG_ID, dedupeKey, "assign_lead_owner", { leadId: lead.id, ownerUserId: changedOwnerId }),
+      ]);
+
+      for (const result of results) {
+        if (result.status === "rejected") {
+          expect(String((result.reason as { message?: string })?.message ?? result.reason)).not.toMatch(/deadlock/i);
+        }
+      }
+
+      const { data: recommendation } = await bossaOwner
+        .from("ai_recommendations")
+        .select("id, status, payload_hash")
+        .eq("dedupe_key", dedupeKey)
+        .single();
+      const { data: approval } = await bossaOwner
+        .from("ai_approvals")
+        .select("status, payload_hash_at_decision")
+        .eq("recommendation_id", recommendation!.id)
+        .single();
+
+      if (recommendation!.status === "approved") {
+        // Outcome A: the re-evaluation's new payload committed first, and
+        // the approval that followed matches it exactly — never a stale hash.
+        expect(approval!.status).toBe("approved");
+        expect(approval!.payload_hash_at_decision).toBe(recommendation!.payload_hash);
+      } else {
+        // Outcome B: the approval committed first; the re-evaluation's
+        // materially different payload reopened it for a fresh decision.
+        expect(recommendation!.status).toBe("proposed");
+        expect(approval!.status).toBe("pending");
+      }
+    }
+  });
+
   it("under a concurrent execute/execute race, exactly one execution claim and one domain mutation occur", async () => {
     const lead = await createLead(bossaOwner, BOSSA_ORG_ID, {
       leadType: "general",
@@ -579,5 +644,53 @@ describe("AI Executive (Phase 4A)", () => {
 
     const { data: updatedLead } = await bossaOwner.from("leads").select("owner_user_id").eq("id", lead.id).single();
     expect(updatedLead?.owner_user_id).toBe(BOSSA_OWNER_ID);
+  });
+
+  // ==========================================================================
+  // Exact evaluation orchestration (issue: rule scope metadata + a real
+  // per-location + organization-wide orchestrator). See
+  // supabase/tests/ai_executive_orchestration.test.sql for the
+  // mixed-scope-rejection proofs at the database layer.
+  // ==========================================================================
+
+  it("discovers a newly added location with no code change and evaluates it", async () => {
+    const { data: newLocation, error: locationError } = await bossaOwner
+      .from("locations")
+      .insert({ organization_id: BOSSA_ORG_ID, name: `Integration Test Location ${Date.now()}`, is_primary: false })
+      .select("id")
+      .single();
+    expect(locationError).toBeNull();
+
+    const asOf = new Date();
+    const { perLocation } = await evaluateOrganizationAcrossLocations(bossaOwner, BOSSA_ORG_ID, { asOf });
+
+    expect(perLocation.some((entry) => entry.locationId === newLocation!.id)).toBe(true);
+  });
+
+  it("resolves a rule-config override to the exact location it targets, falling back to the organization-wide row otherwise", async () => {
+    const { data: newLocation, error: locationError } = await bossaOwner
+      .from("locations")
+      .insert({ organization_id: BOSSA_ORG_ID, name: `Integration Test Config Location ${Date.now()}`, is_primary: false })
+      .select("id")
+      .single();
+    expect(locationError).toBeNull();
+
+    const ruleKey = `orchestration_config_test.${Date.now()}`;
+    const { error: orgConfigError } = await bossaOwner
+      .from("ai_rule_configs")
+      .insert({ organization_id: BOSSA_ORG_ID, rule_key: ruleKey, config: { threshold: 1 } as unknown as Json });
+    expect(orgConfigError).toBeNull();
+
+    const { error: locationConfigError } = await bossaOwner
+      .from("ai_rule_configs")
+      .insert({ organization_id: BOSSA_ORG_ID, location_id: newLocation!.id, rule_key: ruleKey, config: { threshold: 2 } as unknown as Json });
+    expect(locationConfigError).toBeNull();
+
+    const { data: configs } = await bossaOwner.from("ai_rule_configs").select("location_id, config").eq("rule_key", ruleKey);
+
+    const orgRow = configs?.find((row) => row.location_id === null);
+    const locationRow = configs?.find((row) => row.location_id === newLocation!.id);
+    expect((orgRow?.config as { threshold?: number } | null)?.threshold).toBe(1);
+    expect((locationRow?.config as { threshold?: number } | null)?.threshold).toBe(2);
   });
 });
