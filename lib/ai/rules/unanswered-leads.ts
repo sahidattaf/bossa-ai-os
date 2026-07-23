@@ -10,6 +10,7 @@ export type UnansweredLeadsConfig = z.infer<typeof configSchema>;
 
 export const unansweredLeadsRule = defineRule<UnansweredLeadsConfig>({
   ruleKey: "unanswered_leads.v1",
+  scope: "location",
   configSchema,
   defaultConfig: { maxUnanswered: 3 },
   evaluate({ facts, config, locationId }): RuleEvaluationResult {

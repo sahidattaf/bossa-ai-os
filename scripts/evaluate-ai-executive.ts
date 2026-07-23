@@ -14,7 +14,7 @@
  * lib/supabase/service-role.ts). Safe to rerun: apply_ai_evaluation() is
  * fully idempotent per (organization, location, as_of, rule_version).
  */
-import { evaluateOrganization } from "../lib/ai/evaluate";
+import { evaluateOrganizationAcrossLocations } from "../lib/ai/orchestrate";
 import { createServiceRoleClient } from "../lib/supabase/service-role";
 
 function parseArgs(argv: string[]): { org?: string; asOf?: string } {
@@ -52,15 +52,25 @@ async function main() {
 
   console.log(`Running AI Executive evaluation as of ${evaluationAsOf.toISOString()} (${organizations.length} organization(s))...`);
 
+  const summarize = (result: { signalsUpserted: number; signalsResolved: number; recommendationsUpserted: number; recommendationsDeferred: number; recommendationsExpired: number; approvalsExpired: number }) =>
+    `signals +${result.signalsUpserted}/-${result.signalsResolved}, ` +
+    `recommendations +${result.recommendationsUpserted} (${result.recommendationsDeferred} deferred)/-${result.recommendationsExpired}, ` +
+    `approvals expired ${result.approvalsExpired}`;
+
   let failures = 0;
   for (const organization of organizations) {
     try {
-      const result = await evaluateOrganization(supabase, organization.id, { asOf: evaluationAsOf });
-      console.log(
-        `  ✓ ${organization.slug}: signals +${result.signalsUpserted}/-${result.signalsResolved}, ` +
-          `recommendations +${result.recommendationsUpserted} (${result.recommendationsDeferred} deferred)/-${result.recommendationsExpired}, ` +
-          `approvals expired ${result.approvalsExpired}`,
-      );
+      // One evaluation per active location (only 'location'/'both'-scoped
+      // rules run) plus one organization-wide evaluation (only
+      // 'organization'/'both'-scoped rules run) — see
+      // lib/ai/orchestrate.ts::evaluateOrganizationAcrossLocations().
+      const { perLocation, organization: orgResult } = await evaluateOrganizationAcrossLocations(supabase, organization.id, {
+        asOf: evaluationAsOf,
+      });
+      for (const { locationId, result } of perLocation) {
+        console.log(`  ✓ ${organization.slug} [location ${locationId}]: ${summarize(result)}`);
+      }
+      console.log(`  ✓ ${organization.slug} [organization-wide]: ${summarize(orgResult)}`);
     } catch (error) {
       failures += 1;
       console.error(`  ✗ ${organization.slug}: ${error instanceof Error ? error.message : String(error)}`);

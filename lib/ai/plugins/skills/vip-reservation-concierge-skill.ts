@@ -21,6 +21,7 @@ export const vipReservationConciergeSkill: SkillAdapter = {
       "Flags large-party reservations tonight as a concierge opportunity. Reference implementation of the hospitality-os-plugin skill boundary, using repository fixtures only.",
     supportedSignalTypes: [],
     supportedRecommendationTypes: ["vip_reservation_concierge"],
+    scope: "location",
   },
   propose({ facts, locationId, asOf }: SkillInput): RecommendationIntent[] {
     const vips = facts.reservations_tonight.filter((r) => (r.party_size ?? 0) >= VIP_PARTY_SIZE_THRESHOLD);

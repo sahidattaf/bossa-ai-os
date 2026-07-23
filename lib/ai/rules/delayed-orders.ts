@@ -10,6 +10,7 @@ export type DelayedOrdersConfig = z.infer<typeof configSchema>;
 
 export const delayedOrdersRule = defineRule<DelayedOrdersConfig>({
   ruleKey: "delayed_orders.v1",
+  scope: "location",
   configSchema,
   defaultConfig: { maxPreparingMinutes: 30, maxReadyMinutes: 15 },
   evaluate({ facts, config, asOf, locationId }): RuleEvaluationResult {

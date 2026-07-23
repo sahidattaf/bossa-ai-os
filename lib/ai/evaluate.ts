@@ -7,7 +7,7 @@ import type { Database, Json } from "@/lib/supabase/database.types";
 
 import { runLocalSkills } from "./plugins/registry";
 import { RULE_REGISTRY } from "./rules/rule-registry";
-import type { EvaluationFacts } from "./rules/types";
+import { ruleAppliesToScope, type EvaluationFacts } from "./rules/types";
 import { evaluationIntentsSchema, type EvaluationIntents, type RecommendationIntent, type SignalIntent } from "./schemas";
 
 type SupabaseDb = SupabaseClient<Database>;
@@ -137,15 +137,28 @@ async function applyEvaluation(
 }
 
 /**
- * The full deterministic evaluation pipeline for one organization (issue
- * #18 "Deterministic evaluation process"): gather facts (one RLS-safe RPC)
- * → run every registered rule (pure TypeScript, zero DB access) → validate
- * the combined output → apply it all in one transactional RPC call.
+ * The full deterministic evaluation pipeline for one organization **at one
+ * exact scope** (issue #18 "Deterministic evaluation process" + the exact
+ * evaluation orchestration follow-up): gather facts (one RLS-safe RPC,
+ * scoped to options.locationId exactly as apply_ai_evaluation() will
+ * require) → run only the rules/skills whose declared scope matches
+ * options.locationId (pure TypeScript, zero DB access) → validate the
+ * combined output → apply it all in one transactional RPC call, which
+ * itself rejects any intent whose own location_id contradicts this scope.
+ *
+ * This function evaluates ONE scope per call — either one specific location
+ * (options.locationId set) or the organization-wide scope
+ * (options.locationId omitted/null), never both. Most callers should use
+ * evaluateOrganizationAcrossLocations() (lib/ai/orchestrate.ts) instead,
+ * which calls this once per active location plus once for the
+ * organization-wide scope, so every rule (whichever scope it declares)
+ * actually runs somewhere. Calling this directly with no locationId only
+ * evaluates 'organization'/'both'-scoped rules — 'location'-scoped rules
+ * (most of the catalog) never fire without a location.
  *
  * If fact-gathering itself fails, this records an honest
  * "operational_provider_failure" signal (never a fabricated recommendation)
- * and re-throws — the caller (scripts/evaluate-ai-executive.ts or an
- * authenticated "re-evaluate now" action) decides how to surface that.
+ * and re-throws — the caller decides how to surface that.
  */
 export async function evaluateOrganization(
   supabase: SupabaseDb,
@@ -187,6 +200,8 @@ export async function evaluateOrganization(
   const allRecommendations: RecommendationIntent[] = [];
 
   for (const rule of RULE_REGISTRY) {
+    if (!ruleAppliesToScope(rule.scope, locationId)) continue;
+
     const override = configs.get(rule.ruleKey);
     if (override && override.enabled === false) continue;
 

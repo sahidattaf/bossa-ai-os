@@ -10,6 +10,7 @@ export type AgingLeadsConfig = z.infer<typeof configSchema>;
 
 export const agingLeadsRule = defineRule<AgingLeadsConfig>({
   ruleKey: "aging_leads.v1",
+  scope: "location",
   configSchema,
   defaultConfig: { maxAgeHours: 24 },
   evaluate({ facts, config, asOf, locationId }): RuleEvaluationResult {

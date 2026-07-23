@@ -9,6 +9,7 @@ export type RevenueTargetConfig = z.infer<typeof configSchema>;
 
 export const revenueTargetRule = defineRule<RevenueTargetConfig>({
   ruleKey: "revenue_target.v1",
+  scope: "both",
   configSchema,
   defaultConfig: { dailyTarget: 500 },
   evaluate({ facts, config, asOf, locationId }): RuleEvaluationResult {

@@ -13,6 +13,7 @@ function daysBetween(a: Date, b: Date): number {
 
 export const kpiStalenessRule = defineRule<KpiStalenessConfig>({
   ruleKey: "kpi_staleness.v1",
+  scope: "both",
   configSchema,
   defaultConfig: { maxStaleDays: 2 },
   evaluate({ facts, config, asOf, locationId, organizationId }): RuleEvaluationResult {

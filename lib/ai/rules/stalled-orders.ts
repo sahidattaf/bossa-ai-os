@@ -9,6 +9,7 @@ export type StalledOrdersConfig = z.infer<typeof configSchema>;
 
 export const stalledOrdersRule = defineRule<StalledOrdersConfig>({
   ruleKey: "stalled_orders.v1",
+  scope: "location",
   configSchema,
   defaultConfig: { maxUnpaidAgeHours: 24 },
   evaluate({ facts, config, asOf, locationId }): RuleEvaluationResult {

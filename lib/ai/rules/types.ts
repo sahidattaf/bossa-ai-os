@@ -67,8 +67,26 @@ export interface RuleEvaluationResult {
   recommendations: RecommendationIntent[];
 }
 
+/**
+ * Declares which kind of evaluation run a rule participates in (issue:
+ * exact evaluation orchestration). 'location' rules only ever run as part
+ * of a location-scoped evaluation (once per active location, exact-location
+ * facts, every intent's own location_id must equal that location);
+ * 'organization' rules only ever run as part of the one organization-scoped
+ * evaluation (facts gathered with no location filter, every intent's own
+ * location_id must be null); 'both' rules run in every location-scoped run
+ * AND the one organization-scoped run (meaningful at each individual
+ * location and at the organization-wide rollup level — e.g. a KPI rule that
+ * reads daily_kpi_snapshots, which has a genuine org-wide rollup row
+ * alongside per-location rows by design). See
+ * lib/ai/orchestrate.ts::evaluateOrganizationAcrossLocations() and
+ * docs/AI_EXECUTIVE_ARCHITECTURE.md's "Evaluation scope" section.
+ */
+export type RuleScope = "organization" | "location" | "both";
+
 export interface RuleDefinition<TConfig> {
   ruleKey: string;
+  scope: RuleScope;
   // Input is loosened to `any`: every config schema here uses zod `.default()`
   // fields, which makes their real Input type (optional fields) differ from
   // their Output type (TConfig, defaults applied) — `z.ZodType<TConfig>`'s
@@ -79,6 +97,14 @@ export interface RuleDefinition<TConfig> {
   configSchema: z.ZodType<TConfig, z.ZodTypeDef, any>;
   defaultConfig: TConfig;
   evaluate(context: RuleContext<TConfig>): RuleEvaluationResult;
+}
+
+/** True when a rule with the given scope should run as part of an
+ * evaluation targeting p_location_id (null = organization-scoped run,
+ * a uuid = that exact location's run). */
+export function ruleAppliesToScope(scope: RuleScope, locationId: string | null): boolean {
+  if (scope === "both") return true;
+  return locationId === null ? scope === "organization" : scope === "location";
 }
 
 /** Type-erased view used by the registry, which must hold rules with different config shapes. */

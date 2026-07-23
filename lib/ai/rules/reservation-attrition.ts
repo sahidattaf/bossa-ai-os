@@ -9,6 +9,7 @@ export type ReservationAttritionConfig = z.infer<typeof configSchema>;
 
 export const reservationAttritionRule = defineRule<ReservationAttritionConfig>({
   ruleKey: "reservation_attrition.v1",
+  scope: "location",
   configSchema,
   defaultConfig: { maxRecentCancellations: 3 },
   evaluate({ facts, config, asOf, locationId }): RuleEvaluationResult {

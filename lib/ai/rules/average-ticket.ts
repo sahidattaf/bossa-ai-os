@@ -9,6 +9,7 @@ export type AverageTicketConfig = z.infer<typeof configSchema>;
 
 export const averageTicketRule = defineRule<AverageTicketConfig>({
   ruleKey: "average_ticket.v1",
+  scope: "both",
   configSchema,
   defaultConfig: { targetAverageTicket: 25 },
   evaluate({ facts, config, asOf, locationId }): RuleEvaluationResult {

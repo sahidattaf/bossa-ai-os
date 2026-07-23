@@ -1,4 +1,4 @@
-import type { EvaluationFacts } from "../rules/types";
+import type { EvaluationFacts, RuleScope } from "../rules/types";
 import type { RecommendationIntent } from "../schemas";
 
 /**
@@ -17,6 +17,8 @@ export interface SkillManifest {
   description: string;
   supportedSignalTypes: readonly string[];
   supportedRecommendationTypes: readonly string[];
+  /** Same meaning as RuleDefinition.scope — see lib/ai/rules/types.ts. */
+  scope: RuleScope;
 }
 
 /**

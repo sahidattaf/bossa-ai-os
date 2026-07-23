@@ -10,6 +10,7 @@ export type ReservationCapacityConfig = z.infer<typeof configSchema>;
 
 export const reservationCapacityRule = defineRule<ReservationCapacityConfig>({
   ruleKey: "reservation_capacity.v1",
+  scope: "location",
   configSchema,
   defaultConfig: { capacity: 80, warningPercentage: 90 },
   evaluate({ facts, config, asOf, locationId }): RuleEvaluationResult {
