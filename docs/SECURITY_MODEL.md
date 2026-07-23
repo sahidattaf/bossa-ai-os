@@ -161,9 +161,17 @@ A further post-merge review of PR #19 found three more merge-blocking gaps, fixe
 - **Approval decisions and re-evaluation now share one lock order.** `approve_ai_recommendation()` and `reject_ai_recommendation()` lock the recommendation row (`FOR UPDATE`) before deciding the approval, the same order `apply_ai_evaluation()`'s reopening logic already used — two transactions taking locks in a fixed, consistent order can never deadlock against each other, and the approval decision re-verifies the recommendation's organization, `proposed` status, and live payload hash before committing, so no committed state can ever pair an approved approval with a recommendation whose payload has since changed.
 - **Evaluation scope is enforced by rule metadata and the database, not just convention.** Every rule and skill now declares `scope: "organization" | "location" | "both"`; a new orchestrator (`evaluateOrganizationAcrossLocations()`) runs one evaluation per active location plus one organization-scoped evaluation, discovering locations dynamically so a newly added one needs no code change. `apply_ai_evaluation()` independently rejects any signal or recommendation intent whose own `location_id` doesn't exactly match the run's scope — including an explicit `null` during a location-scoped run — before writing anything, so a rule-authoring mistake or an orchestration bug can never produce a mixed-scope row.
 
+## Production activation (Phase 4.5 Lane A)
+
+No schema or RLS change was needed to take this security model into production — see `docs/PRODUCTION_ACTIVATION_AUDIT.md` for the full audit. Two items specifically extend this document's guarantees to a real deployment:
+
+- **Real tenant bootstrap is a dedicated, service-role, off-request-path script** (`scripts/bootstrap-production-tenants.ts`), never `supabase/seed.sql` (explicitly dev/test-only) and never a manual SQL session — consistent with "self-serve organization creation... is still a manual, service-role administrative action" below. It is dry-run by default and never deletes or overwrites existing rows.
+- **Backup/PITR posture is a per-project operational fact, not a repository guarantee.** `audit_logs`'s append-only design (no `authenticated` UPDATE/DELETE policy) records what happened but is not a substitute for a real database backup. `docs/PRODUCTION_DEPLOYMENT.md` requires confirming the linked project's actual backup tier and post-restoration backup history before it's treated as a recoverable system.
+
 ## What's still not covered
 
 - Rate limiting / brute-force protection on `/login` (Supabase Auth's own defaults apply; nothing additional was added).
 - Self-serve organization creation — provisioning a new organization is still a manual, service-role administrative action.
 - Phase 3B domains (inventory, suppliers, menu costing, reviews, staff/tasks, finance) — no tables, policies, or screens exist for any of them yet.
 - A learning/memory loop for the AI Executive — `ai_outcomes` records results for human review, but nothing yet feeds them back into rule weighting or priority scoring.
+- A verified backup/PITR posture for the production Supabase project — tracked as a required pre-cutover step in `docs/PRODUCTION_DEPLOYMENT.md`, not yet confirmed.

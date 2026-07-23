@@ -23,7 +23,9 @@
     "supabase:types": "supabase gen types typescript --local > lib/supabase/database.types.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "kpi:generate": "tsx scripts/generate-kpi-snapshots.ts",
-    "ai:evaluate": "tsx scripts/evaluate-ai-executive.ts"
+    "ai:evaluate": "tsx scripts/evaluate-ai-executive.ts",
+    "bootstrap:production-tenants": "tsx scripts/bootstrap-production-tenants.ts",
+    "export:legacy-data": "tsx scripts/export-legacy-supabase-data.ts"
   },
   "dependencies": {
     "next": "15.5.20",

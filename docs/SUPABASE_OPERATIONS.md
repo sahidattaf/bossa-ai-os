@@ -81,13 +81,13 @@ Every tenant-owned table has RLS enabled *and forced*. Access is derived exclusi
 - **A broken migration on a real linked project**: write a new forward migration that undoes the mistake (e.g. `drop column`, restore a dropped policy) rather than editing history — Supabase's migration history table tracks what's already been applied, and rewriting an already-applied migration file will desync it from what's actually in the database. `supabase migration repair` exists for genuinely correcting the tracked history after a manual fix, but reach for a new forward migration first.
 - **Audit trail**: `audit_logs` is append-only (no authenticated UPDATE/DELETE policy exists on it at all) by design, so it isn't part of normal rollback — it's meant to survive whatever else happens.
 
-## Linking a real hosted project (not done in this PR)
+## Linking a real hosted project
 
-This PR deliberately does not link, restore, or modify any real Supabase cloud project — doing so has cost and account implications outside an implementation PR's scope. When you're ready:
+For the full production activation procedure — remote migrations, production seed policy, auth site URL/redirect configuration, the environment-variable checklist, the BOSSA/Papai owner-membership bootstrap, cutover sequencing, smoke tests, and rollback — see **`docs/PRODUCTION_DEPLOYMENT.md`**. The short version:
 
 ```bash
 supabase link --project-ref <your-project-ref>
 supabase db push          # applies local migrations to the linked project
 ```
 
-Then set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY` (server-only, from Project Settings → API) in your deployment environment. Never commit `SUPABASE_SECRET_KEY` or put it behind `NEXT_PUBLIC_`.
+Then set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY` (server-only, from Project Settings → API) in your deployment environment. Never commit `SUPABASE_SECRET_KEY` or put it behind `NEXT_PUBLIC_`. **Never run `supabase db reset` or apply `seed.sql` against a linked production project** — both are local-dev-only; real tenant data comes from `scripts/bootstrap-production-tenants.ts` instead (see `docs/PRODUCTION_DEPLOYMENT.md`).

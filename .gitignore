@@ -27,3 +27,8 @@ next-env.d.ts
 supabase/.branches
 supabase/.temp
 supabase/.env
+
+# Legacy Supabase data exports (scripts/export-legacy-supabase-data.ts) —
+# real production/legacy data, never committed. See docs/PRODUCTION_DEPLOYMENT.md
+# § "Legacy Preservation Gate".
+.legacy-exports/
