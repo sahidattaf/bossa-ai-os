@@ -123,7 +123,7 @@ e2e job: Playwright                                                      → PAS
 
 ## Phase 4B: post-merge security hardening
 
-A principal-engineer security review of PR #19 (after Phase 4A's CI was fully green) found five categories of merge-blocking defects — all genuine gaps in the original design, not test bugs. Fixed forward with three new migrations (`20260724000001`–`20260724000003`), without weakening any Phase 4A assertion. Full design in `docs/AI_APPROVAL_AND_ACTION_SECURITY.md` and `docs/AI_EXECUTIVE_ARCHITECTURE.md`.
+A principal-engineer security review of PR #19 (after Phase 4A's CI was fully green) found five categories of merge-blocking defects — all genuine gaps in the original design, not test bugs. Fixed forward with four new migrations (`20260724000001`–`20260724000004`), without weakening any Phase 4A assertion. Full design in `docs/AI_APPROVAL_AND_ACTION_SECURITY.md` and `docs/AI_EXECUTIVE_ARCHITECTURE.md`.
 
 1. **Non-atomic decisions.** `approve_ai_recommendation()`, `reject_ai_recommendation()`, and (found during the fix, not named by the review — the identical defect) `dismiss_ai_recommendation()` each read status/version in one statement and updated a *different* statement later, keyed only by `id` — two concurrent decisions could both believe they'd won. Fixed by folding every precondition into the single deciding `UPDATE ... WHERE ...`, relying on Postgres's default READ COMMITTED isolation to guarantee at most one of two racing statements matches. A diagnostic-only re-read after a failed CAS preserves precise error messages (`INVALID_STATUS_TRANSITION` vs. version-mismatch `CONFLICT` vs. expired) without reintroducing the race.
 2. **Non-atomic execution claim.** `begin_ai_recommendation_execution()`'s `approved`/`failed → executing` transition had the same defect. Fixed the same way, and extended with a genuine execution-claim contract: `ai_recommendations.execution_token` (minted fresh, atomically, by the winning claim), `executing_at`, and `execution_attempt_number`.
@@ -135,7 +135,34 @@ A principal-engineer security review of PR #19 (after Phase 4A's CI was fully gr
 8. **Incomplete location validation.** `validate_ai_source_entity_reference()` never populated a source location for `lead` or `order_item` at all, so the location-mismatch branch could never fire for either type (only `reservation`, `order`, and `daily_kpi_snapshot` were actually checked). Fixed by resolving `lead.location_id` directly and `order_item`'s location via a join to its parent `order`.
 9. **Finance-sensitive values leaking outside evidence.** RLS redaction only ever covers `ai_recommendation_evidence` rows marked `isFinanceSensitive: true` — `revenue_target.v1`/`average_ticket.v1` put the raw figure directly into their signal's `facts` (which RLS never redacts), and `stalled_orders.v1` additionally interpolated the order total straight into its recommendation's `executive_summary`. Fixed by removing every raw amount from any field outside an evidence row; documented as a standing rule-authoring constraint in `docs/AI_RULES_AND_SIGNALS.md`.
 
-**New test coverage:** 27 new pgTAP assertions in `supabase/tests/ai_executive_concurrency.test.sql` (location validation, exact scope with a second BOSSA location, immutability, the duplicate-success constraint, the full recovery lifecycle — all proven sequentially, since pgTAP's single-transaction model can't express true concurrency) plus 8 new integration tests in `tests/integration/ai-executive.test.ts`, three of them genuine concurrent-race tests via real `Promise.allSettled` network calls (approve-vs-approve, approve-vs-reject, execute-vs-execute), one live immutability-during-execution test, and one full crash/recovery/retry cycle. 7 new unit-test assertions across three rule files confirm no finance-sensitive value leaks outside evidence. `ai_executive_security.test.sql`'s original 40 assertions are unchanged in count — only their `record_ai_action_attempt`/`record_ai_outcome` call sites were adapted for the new required `execution_token` parameter.
+**New test coverage:** 27 new pgTAP assertions in `supabase/tests/ai_executive_concurrency.test.sql` (location validation, exact scope with a second BOSSA location, immutability, the duplicate-success constraint, the full recovery lifecycle — all proven sequentially, since pgTAP's single-transaction model can't express true concurrency) plus 5 new integration tests in `tests/integration/ai-executive.test.ts` (10 → 15), three of them genuine concurrent-race tests via real `Promise.allSettled` network calls (approve-vs-approve, approve-vs-reject, execute-vs-execute), one live immutability-during-execution test, and one full crash/recovery/retry cycle. 7 new unit-test assertions across three rule files confirm no finance-sensitive value leaks outside evidence. `ai_executive_security.test.sql`'s original 40 assertions are unchanged in count — only their `record_ai_action_attempt`/`record_ai_outcome` call sites were adapted for the new required `execution_token` parameter.
+
+### Validation results (Phase 4B)
+
+Local: `npm ci`, `npm run lint`, `npx tsc --noEmit`, `npm run test` (19 files, 78 tests), `npm run build`, and the full local Playwright suite (44 specs, 41 run / 3 platform-skipped) all clean before pushing.
+
+**CI — real run, all green:** after 3 fix-forward iterations against real infrastructure:
+
+```text
+validate: lint, typecheck, unit test (19 files/78 tests), build          → PASS
+database job:
+  supabase db reset (all 13 migrations + seed.sql)                        → applies clean from empty
+  supabase test db (pgTAP: rls_cross_tenant + operational_security +
+    ai_executive_security + ai_executive_concurrency)                     → PASS — 123/123 (29 + 27 + 40 + 27)
+  regenerate lib/supabase/database.types.ts + re-typecheck                 → clean against the real schema
+  git diff --exit-code -- lib/supabase/database.types.ts                  → zero drift (hard failure, passing)
+  npm run test:integration (4 files, ai-executive.test.ts now 15 tests)    → PASS — 37/37
+  supabase stop                                                           → clean shutdown
+e2e job: Playwright                                                       → PASS — 44 specs (41 run, 3 platform-skipped)
+Vercel – bossa-ai-os (preview)                                            → PASS
+Vercel – bossa-ai-os-yanz (preview)                                       → PASS
+```
+
+### Bugs found by CI (Phase 4B, each fixed as its own commit)
+
+1. **`database.types.ts` drift for the new `ai_execution_lease_duration()` function.** The hand-authored guess (`Args: Record<PropertyKey, never>; Returns: unknown`) didn't match the real generator's single-line `{ Args: never; Returns: string }` for a niladic SQL function returning `interval`. Fixed by committing the exact real output — the only diff in the entire regenerated file, after all 123 pgTAP assertions across all four suites already passed cleanly on the very first real run.
+2. **`service_role` had no table-level grant on `ai_recommendations` at all.** Every prior service-role use in this project went through a `SECURITY DEFINER` function (which runs with the *definer's* privileges regardless of caller), so no direct grant was ever needed before — the new recovery integration test is the first to need `service_role` to backdate `executing_at` directly (the only deterministic way to simulate an execution lease elapsing without a real 15-minute wait). Postgres's own error named the exact fix (`GRANT SELECT, UPDATE ON public.ai_recommendations TO service_role`); added in a dedicated migration with reasoning for why this doesn't expand what `service_role` can effectively do (it already bypasses RLS and is never used on any real request path).
+3. **A test bug in the immutability integration test, not a schema defect.** It asserted a lead's `owner_user_id` had been updated after finalizing a claim taken directly via the `begin_ai_recommendation_execution` RPC — but that path deliberately bypasses `executeAiRecommendation()` (to hold the recommendation open for the re-evaluation the test is actually about), so the real `lib/operations/*` domain action never ran. Fixed the assertion to check what the test actually exercises (the claim finalizes cleanly and the recommendation reaches `completed`) — the real domain-effect round trip is already covered by the pre-existing "approves and executes a recommendation..." test.
 
 ## Phase 5 readiness
 
