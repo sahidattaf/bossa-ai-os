@@ -81,43 +81,18 @@ A **third, less obvious collision** was also found: this repository's own `20260
 
 Renaming a table in place (the prior version of this plan) does not touch that table's indexes, constraints, or triggers — they keep their original, schema-global names (`orders_pkey` stays `orders_pkey` even after `orders` becomes `legacy_orders_archived`), which does nothing to prevent a name collision at the index/constraint level once this repository's own migrations try to create their own `orders_pkey`. Moving the table to a **different schema** solves this correctly: `ALTER TABLE ... SET SCHEMA` relocates the table **and everything intrinsically owned by it** (its indexes, constraints, and triggers, since none of those have independent schema membership apart from their table) in one operation — no separate rename of `orders_pkey` is needed at all.
 
-```sql
--- Executed directly against bossa-ai-os (SQL editor or a dedicated, reviewed
--- one-off script) — NEVER as a supabase/migrations/*.sql file, since repo
--- migrations apply uniformly to every environment (including a from-empty
--- local `supabase db reset`), where no such legacy schema exists to move.
+### Implementation: `supabase/production-ops/legacy_schema_cleanup.sql`
 
-begin;
+The actual cleanup is implemented as two PL/pgSQL functions in `supabase/production-ops/legacy_schema_cleanup.sql` — **deliberately not a `supabase/migrations/*.sql` file**. Repository migrations apply uniformly and automatically to every environment (a fresh local `supabase db reset`, every CI run, and eventually `bossa-ai-os` itself via `supabase db push`) — this cleanup is the opposite: it must run exactly once, only against `bossa-ai-os`, only after human review, and strictly *before* this repository's own migrations are pushed (its whole purpose is freeing the `orders`/`menu_items` names those migrations need). A numbered migration file could not express that ordering — `db push` applies every pending migration in one batch, with no pause for verification in between.
 
-create schema if not exists legacy_bossa;
+Loading the file only **defines** `public.perform_legacy_bossa_schema_cleanup()` and `public.verify_legacy_bossa_schema_cleanup()` — neither runs anything by being defined. The actual cleanup happens only when `select public.perform_legacy_bossa_schema_cleanup();` is run as its own explicit, separate statement (see `docs/PRODUCTION_DEPLOYMENT.md`'s controlled execution procedure). Both functions accept the source/target schema names as parameters (defaulting to the real `public` → `legacy_bossa` move) specifically so the *exact same file* can be exercised end-to-end in `supabase/tests/legacy_schema_cleanup.test.sql` against a disposable, synthetic fixture schema — real, CI-verified test coverage of the code that will actually run against `bossa-ai-os`, not a reimplementation of its logic.
 
-alter table public.campaigns       set schema legacy_bossa;
-alter table public.weekly_briefs   set schema legacy_bossa;
-alter table public.whatsapp_leads  set schema legacy_bossa;
-alter table public.orders          set schema legacy_bossa;
-alter table public.menu_items      set schema legacy_bossa;
-alter table public.bookings        set schema legacy_bossa;
-alter table public.users_profiles  set schema legacy_bossa;
-alter table public.kpi_daily       set schema legacy_bossa;
-alter table public.content_items   set schema legacy_bossa;
-alter table public.decision_log    set schema legacy_bossa;
-alter table public.agent_runs      set schema legacy_bossa;
+`perform_legacy_bossa_schema_cleanup()` fails closed on every documented precondition before changing anything:
 
--- Lock the schema down: no authenticated/anon/public access of any kind.
-revoke all on schema legacy_bossa from public, authenticated, anon;
-revoke all on all tables in schema legacy_bossa from public, authenticated, anon;
-alter default privileges in schema legacy_bossa revoke all on tables from public, authenticated, anon;
+- Refuses outright if the target schema already exists (never a silent rerun).
+- Raises a clear, specific exception naming exactly which documented table(s), index(es), or function(s) are missing from the source schema, rather than silently skipping a missing object or guessing.
 
--- Preserve read access for reconciliation work, explicitly (service_role
--- already bypasses RLS/grants by design, but this documents intent and
--- costs nothing).
-grant usage on schema legacy_bossa to service_role;
-grant select on all tables in schema legacy_bossa to service_role;
-
-commit;
-```
-
-Row data is untouched by a schema move — every legacy row remains exactly as it was, still queryable by `service_role`, still exportable, even after this step. **No `drop table` statement appears anywhere in this plan** — a genuine deletion, if ever wanted after full reconciliation, is a separate, later, independently-approved decision, not part of this cleanup.
+Only if every precondition holds does it proceed: `create schema legacy_bossa`, move all 11 documented tables and the 2 documented functions into it (`alter table/function ... set schema`), then lock the new schema down — `revoke all ... from public, anon, authenticated`, `grant usage/select ... to service_role` only. **No `drop table` statement appears anywhere in this implementation** — a genuine deletion, if ever wanted after full reconciliation, is a separate, later, independently-approved decision, not part of this cleanup.
 
 ### `legacy_bossa` must never become an exposed schema
 
@@ -127,15 +102,15 @@ This is a **hosted-project dashboard setting** (Project Settings → API → "Ex
 
 | Function | Current schema | Referenced by this repository? | Disposition |
 | --- | --- | --- | --- |
-| `public.set_updated_at` | `public` | **Yes — collides.** This repository's own `20260721230001_extensions_and_helpers.sql` creates `public.set_updated_at()` via `create or replace function`, which will silently overwrite the legacy version when `db push` runs. | **Do not move.** Instead, before `db push`: (a) capture the legacy function's exact current body (`select pg_get_functiondef('public.set_updated_at()'::regprocedure);`) for the record: (b) confirm it is behaviorally equivalent to this repository's version (`new.updated_at = now(); return new;`, `search_path` pinned) — the legacy migration name `harden_set_updated_at_search_path` strongly suggests it already is; (c) confirm every legacy table whose triggers call it actually has an `updated_at` column, since this repository's version assumes one exists and would error on `BEFORE UPDATE` for any legacy table missing it. If all three hold, `create or replace function` safely upgrades the legacy function in place and every legacy trigger (on tables now living in `legacy_bossa`) keeps working unchanged, since a trigger binds to its function by OID, not by the function's schema location. |
-| `public.set_created_by_from_auth` | `public` | No — this repository has no function of this name. | Move into `legacy_bossa` for consistency (`alter function public.set_created_by_from_auth() set schema legacy_bossa;`), since it is legacy-specific logic tied to the legacy tables now living there. Verify first (precondition 2's trigger query) which legacy tables actually call it. |
-| `private.is_bossa_operator` | `private` | No — this repository never creates or references a `private` schema. | **No action required.** The legacy migration name `move_operator_helper_to_private_schema` shows this was already deliberately isolated from `public`/PostgREST exposure by the original engineers, for the same reason this plan isolates the rest of the legacy schema now. It can be left exactly where it is (already non-exposed, already not colliding) or optionally moved into `legacy_bossa` later purely for consolidation — not required for the collision to be resolved. |
+| `public.set_updated_at` | `public` | **Yes — collides.** This repository's own `20260721230001_extensions_and_helpers.sql` creates `public.set_updated_at()` via `create or replace function`, which would silently overwrite the legacy version in place if it were left in `public` when `db push` runs. | **Move**, same as the tables (`alter function public.set_updated_at() set schema legacy_bossa`) — implemented by `perform_legacy_bossa_schema_cleanup()`. An earlier version of this plan considered leaving it in place and relying on `create or replace function` to "safely upgrade" it, on the theory that the legacy migration name (`harden_set_updated_at_search_path`) suggests it's already behaviorally equivalent — moving it is strictly safer: it doesn't depend on that equivalence assumption holding, and Postgres binds a trigger to its function by OID, not by schema-qualified name, so every legacy trigger (on tables now living in `legacy_bossa`) keeps calling the exact same function object, unchanged, regardless of which schema it now lives in — proven directly in `supabase/tests/legacy_schema_cleanup.test.sql`, which updates a moved fixture row and confirms the trigger still fires correctly post-move. Once moved, the name `public.set_updated_at` is free, and this repository's own migration creates it fresh with no collision at all. |
+| `public.set_created_by_from_auth` | `public` | No — this repository has no function of this name. | **Move** into `legacy_bossa` (`alter function public.set_created_by_from_auth() set schema legacy_bossa`) — implemented by the same function, since it is legacy-specific logic tied to the legacy tables now living there. |
+| `private.is_bossa_operator` | `private` | No — this repository never creates or references a `private` schema. | **No action required, not moved by `perform_legacy_bossa_schema_cleanup()`.** The legacy migration name `move_operator_helper_to_private_schema` shows this was already deliberately isolated from `public`/PostgREST exposure by the original engineers, for the same reason this plan isolates the rest of the legacy schema now. It can be left exactly where it is (already non-exposed, already not colliding) or optionally moved into `legacy_bossa` later purely for consolidation — not required for the collision to be resolved. |
 
 ---
 
 ### Two separate, checkpointed steps — not one operation
 
-1. **Step 1: run the schema move above against `bossa-ai-os`.** Stop here. Re-run the verification queries below to confirm every table's indexes/constraints/triggers moved with it and nothing else broke.
+1. **Step 1: load `supabase/production-ops/legacy_schema_cleanup.sql` against `bossa-ai-os`, then call `select public.perform_legacy_bossa_schema_cleanup();`.** Stop here. Run `select * from public.verify_legacy_bossa_schema_cleanup();` and confirm every returned row's `passed` is `true` before proceeding — see `docs/PRODUCTION_DEPLOYMENT.md`'s controlled execution procedure for the exact ordered steps.
 2. **Step 2 (separate approval, separate session): `supabase link` + `supabase db push`** (`docs/PRODUCTION_DEPLOYMENT.md` § 3) to apply this repository's 31 real migrations (plus the 7 already-tracked historical markers — see `docs/PRODUCTION_DEPLOYMENT.md` § "Migration history alignment"), now that `orders`/`menu_items` and every index/constraint they own are out of `public` entirely.
 
 Keeping these as two checkpoints — not one transaction, not one sitting — means step 1 can be verified safe on its own before step 2's much larger migration set runs, and means a problem discovered after step 1 doesn't also have to unwind a partially-applied migration set.
@@ -143,6 +118,8 @@ Keeping these as two checkpoints — not one transaction, not one sitting — me
 ---
 
 ## Verification queries (run after step 1, before step 2)
+
+**Primary tool:** `select * from public.verify_legacy_bossa_schema_cleanup();` — returns one row per check (tables moved, source schema free of collisions, each documented index present under the target schema, each documented function moved and its source name freed, the target schema locked down, every trigger on a moved table still resolving to a valid function). Confirm every row's `passed` is `true`. This automates exactly the manual queries below — the manual queries remain here for a human to double-check independently, not because the function is untrusted.
 
 ```sql
 -- Every legacy table now lives in legacy_bossa, with all rows intact
@@ -189,10 +166,11 @@ select pg_get_functiondef('public.set_updated_at()'::regprocedure);
 
 ## Rollback / recovery strategy
 
-- **After step 1 only (before step 2 runs):** reversible by moving every table back — `alter table legacy_bossa.orders set schema public;` (repeated per table) restores the exact prior state, since nothing else has changed yet. The indexes/constraints move back with their tables for the same reason they moved forward with them.
-- **After step 2 has also run:** no longer a simple move-back, because `public.orders`/`public.menu_items` now exist again under the new Phase 1–4 shape (with their own new `orders_pkey`, etc. — which would itself collide with the legacy index name still sitting in `legacy_bossa`, though a same-named index in a *different* schema is not itself a conflict, only same-schema names are). Reverting at this point means: decide what to do with the new (empty) Phase 1–4 tables first, then move the legacy tables back only if the new ones are removed or renamed out of the way — and separately decide the migration-tracking state via `supabase migration repair` if needed, per `docs/SUPABASE_OPERATIONS.md`'s existing rollback guidance. This is why step 1 and step 2 are kept as separate, independently-verified checkpoints above rather than one atomic change.
+- **After step 1 only (before step 2 runs):** reversible by moving every table AND both functions back — `alter table legacy_bossa.orders set schema public;` (repeated per table) and `alter function legacy_bossa.set_updated_at() set schema public;` / `alter function legacy_bossa.set_created_by_from_auth() set schema public;` restores the exact prior state, since nothing else has changed yet. The indexes/constraints move back with their tables for the same reason they moved forward with them, and the reverted `public.set_updated_at()` still has its original legacy body (a schema move never alters a function's definition).
+- **After step 2 has also run:** no longer a simple move-back, because `public.orders`/`public.menu_items` (and `public.set_updated_at()`) now exist again under this repository's own shape (with their own new `orders_pkey`, etc. — which would itself collide with the legacy index name still sitting in `legacy_bossa`, though a same-named index in a *different* schema is not itself a conflict, only same-schema names are). Reverting at this point means: decide what to do with the new (empty) Phase 1–4 tables first, then move the legacy tables/functions back only if the new ones are removed or renamed out of the way — and separately decide the migration-tracking state via `supabase migration repair` if needed, per `docs/SUPABASE_OPERATIONS.md`'s existing rollback guidance. This is why step 1 and step 2 are kept as separate, independently-verified checkpoints above rather than one atomic change.
 - **The legacy migration-history entries** (the 7 rows already tracked for `bossa-ai-os`) are never deleted or edited by this plan — see `docs/PRODUCTION_DEPLOYMENT.md` § "Migration history alignment" for how they coexist with this repository's own tracked migrations going forward.
 - **The Legacy Preservation Gate's exports remain the backstop of last resort** for the actual data, independent of any schema-move/rollback mechanics above — see `docs/LEGACY_DATA_RECONCILIATION_PLAN.md`.
+- **After step 1 is verified successful and step 2 has also completed cleanly**, drop the two administrative functions themselves — `drop function public.perform_legacy_bossa_schema_cleanup(text, text);` and `drop function public.verify_legacy_bossa_schema_cleanup(text, text);` — as the final manual step. They are a one-time operational tool, not a permanent fixture; leaving an unused `security definer` function with DDL capability sitting in production indefinitely is an avoidable, standing risk surface once its one job is done. This is never automated (no self-dropping) — a human confirms verification passed first.
 
 ---
 
