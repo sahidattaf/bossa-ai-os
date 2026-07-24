@@ -1,0 +1,15 @@
+-- Historical marker migration — issue #22 (Phase 4.5 Lane A2), "migration
+-- history alignment." See 20260524154102_init_bossa_ai_os_core.sql's header
+-- comment for the full rationale — this file exists only to match remote's
+-- already-tracked history for `bossa-ai-os`, never to encode real DDL/DML.
+--
+-- This is the version whose name (`harden_set_updated_at_search_path`)
+-- indicates the legacy project's `public.set_updated_at()` function was
+-- already pinned to a fixed `search_path` here — the same function this
+-- repository's own 20260721230001_extensions_and_helpers.sql later
+-- (re)creates under the identical name. See
+-- docs/PRODUCTION_SCHEMA_COLLISION_CLEANUP_PLAN.md's "Legacy functions"
+-- table for the collision this implies and the precondition to verify
+-- before `db push` overwrites it.
+--
+-- Deliberately a no-op: zero DDL, zero DML.

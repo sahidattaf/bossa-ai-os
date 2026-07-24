@@ -39,23 +39,36 @@ For **each** project, before touching anything:
 
 ### Legacy export utility
 
-`scripts/export-legacy-supabase-data.ts` (added by this PR) is the read-only tool for this gate — see its own header comment and `docs/PRODUCTION_ACTIVATION_AUDIT.md` for the full design. Summary:
+`scripts/export-legacy-supabase-data.ts` (added by this PR) is the read-only tool for this gate — see its own header comment and `docs/PRODUCTION_ACTIVATION_AUDIT.md` for the full design. It validates that `--project` actually matches the project ref reachable at `LEGACY_SUPABASE_URL` before reading anything (refuses a cross-wired URL outright), paginates every table to exhaustion ordered by `id`, and only writes any file at all once every requested dataset has been fully validated — a partial failure writes nothing but a `status: "failed"` manifest, never a partial set of data files.
 
-```bash
-# Dry run / list mode — prints what would be exported, row counts, nothing written.
-LEGACY_SUPABASE_URL=https://oqmftkttkfktyzefswpz.supabase.co LEGACY_SUPABASE_SECRET_KEY=... \
-  npm run export:legacy-data -- --project=bossa-ai-os
+**Never type a real secret key directly into a shared terminal history or paste it into chat, a GitHub issue/PR, or Notion.** Set both variables in your own local PowerShell session only, for the duration of the command:
+
+```powershell
+# Dry run / list mode first — prints what would be exported, row counts, nothing written, no credentials required for this step.
+npm run export:legacy-data -- --project=bossa-ai-os
+
+# Set the real credentials in your own PowerShell session (not committed, not pasted anywhere):
+$env:LEGACY_SUPABASE_URL = "https://oqmftkttkfktyzefswpz.supabase.co"
+$env:LEGACY_SUPABASE_SECRET_KEY = "<paste the bossa-ai-os service_role key here, in your terminal only>"
 
 # Actually write the export (JSON per table + a checksummed manifest) to the gitignored output directory:
-LEGACY_SUPABASE_URL=https://oqmftkttkfktyzefswpz.supabase.co LEGACY_SUPABASE_SECRET_KEY=... \
-  npm run export:legacy-data -- --project=bossa-ai-os --confirm
+npm run export:legacy-data -- --project=bossa-ai-os --confirm
+
+# Clear the credentials from this session before switching projects:
+Remove-Item Env:\LEGACY_SUPABASE_URL, Env:\LEGACY_SUPABASE_SECRET_KEY
 
 # Repeat for Bossa Asado i Mar with its own URL/secret key:
-LEGACY_SUPABASE_URL=https://zgfncoexiqnqeqaxpqdy.supabase.co LEGACY_SUPABASE_SECRET_KEY=... \
-  npm run export:legacy-data -- --project=bossa-asado-i-mar --confirm
+$env:LEGACY_SUPABASE_URL = "https://zgfncoexiqnqeqaxpqdy.supabase.co"
+$env:LEGACY_SUPABASE_SECRET_KEY = "<paste the Bossa Asado i Mar service_role key here, in your terminal only>"
+npm run export:legacy-data -- --project=bossa-asado-i-mar --confirm
+Remove-Item Env:\LEGACY_SUPABASE_URL, Env:\LEGACY_SUPABASE_SECRET_KEY
 ```
 
+(Bash-equivalent, if run from a Unix shell instead: `LEGACY_SUPABASE_URL=... LEGACY_SUPABASE_SECRET_KEY=... npm run export:legacy-data -- --project=bossa-ai-os --confirm`.)
+
 It only ever issues `select` reads (and the GoTrue admin `listUsers` read for auth identities) — it has no delete, update, or DDL capability at all, by construction, not just by convention.
+
+**After a real run**, verify it independently rather than trusting the manifest alone: re-run the dry-run/list mode's row counts against the live project (via the dashboard's Table Editor or a read-only SQL count) and confirm they match `manifest.json`'s `rowCount` per table, and recompute each table's own JSON file's SHA-256 (e.g. `Get-FileHash -Algorithm SHA256 .legacy-exports\bossa-ai-os\campaigns.json` in PowerShell) and confirm it matches the manifest's `checksumSha256` for that table.
 
 ---
 
@@ -72,7 +85,7 @@ Export and verify everything (§1), then remove or archive the colliding legacy 
 - Every export's checksum has been independently verified against the live source table (re-query and re-hash, don't trust a single export run).
 - `bossa-ai-os`'s backup posture has been confirmed and recorded (§12) — a destructive change on a project with no verified backup is not acceptable.
 - An explicit, separate destructive-change approval has been given for the specific `drop`/`archive` statements about to run — not a general "go ahead," a reviewed SQL plan.
-- A tested collision-cleanup SQL plan exists (e.g. `alter table public.orders rename to legacy_orders_archived;` rather than an outright `drop`, so the exported data also stays queryable in place as a second safety net) and has been dry-run/reviewed before executing against the real project.
+- A tested collision-cleanup SQL plan exists — see `docs/PRODUCTION_SCHEMA_COLLISION_CLEANUP_PLAN.md` for the exact strategy (moving every legacy table into its own `legacy_bossa` schema via `ALTER TABLE ... SET SCHEMA`, never a `drop`, so the exported data also stays queryable in place as a second safety net) — and has been dry-run/reviewed before executing against the real project.
 
 ### Path B — provision a new, clean project
 
@@ -93,7 +106,19 @@ supabase link --project-ref <target-project-ref>
 supabase db push
 ```
 
-This applies all 33 committed migrations — every table, RLS policy, function, trigger, grant, and the platform-wide roles/permissions/role_permissions catalog — to the linked project. It moves **no business data**; migrations and bootstrap data are deliberately separate steps (§4 below).
+This applies this repository's 31 real Phase 1–4 migrations — every table, RLS policy, function, trigger, grant, and the platform-wide roles/permissions/role_permissions catalog — to the linked project. It moves **no business data**; migrations and bootstrap data are deliberately separate steps (§4 below).
+
+### Migration history alignment (read before running `db push`)
+
+**`db push` does not simply append this repository's 31 migrations to an empty history.** `bossa-ai-os` already has 7 legacy migration versions tracked as applied on its remote `supabase_migrations.schema_migrations` table (`20260524154102` through `20260524191621` — see `docs/PRODUCTION_ACTIVATION_AUDIT.md` §3 and `docs/PRODUCTION_SCHEMA_COLLISION_CLEANUP_PLAN.md`). Before this PR, this repository's local `supabase/migrations/` directory had no files at those 7 versions at all — a `supabase migration list --linked` against `bossa-ai-os` would have shown those 7 as **Remote-only**, a genuine local/remote mismatch, not simply "not yet pushed."
+
+This is now resolved by 7 committed **historical marker migrations**, at the exact same versions and names as the tracked remote entries (`20260524154102_init_bossa_ai_os_core.sql` through `20260524191621_enable_campaign_content_calendar_writes.sql`). Each is a deliberate no-op — zero DDL, zero DML, just a comment explaining why it exists — so:
+
+- A fresh local `supabase db reset` still passes unchanged: the 7 markers execute nothing (chronologically first, since `20260524...` sorts before `20260721...`), then all 31 real migrations run exactly as before.
+- `supabase migration list --linked` against `bossa-ai-os`, run **before** `db push`, should now show all 38 versions (7 markers + 31 real) as **Local**, with the same 7 markers also already **Remote** (in sync — no repair needed, since remote already tracks those exact versions and the CLI does not re-verify already-applied migrations' content by default), and the 31 real ones as **Local only** (pending push).
+- Running `db push` at that point applies only the 31 real, not-yet-applied migrations — the 7 markers are already applied remotely and are correctly skipped, not reapplied.
+
+**`supabase migration repair` is not used here and should not be, absent a separately verified reason** — repair exists to manually correct a tracked-history row that's already wrong (e.g. a version marked applied that isn't, or vice versa); the 7 remote entries are already correct as-is, so nothing needs correcting, only matching locally, which committing the markers does directly.
 
 **Verify before moving on:**
 
@@ -101,7 +126,7 @@ This applies all 33 committed migrations — every table, RLS policy, function, 
 supabase migration list --linked
 ```
 
-All 33 migrations should show as applied, with none missing or out of order. Then, in the Supabase dashboard:
+All 38 versions (7 historical markers + 31 real Phase 1–4 migrations) should show as applied on both Local and Remote, with none missing or out of order. Then, in the Supabase dashboard:
 
 - Run the built-in **Security Advisor** and **Performance Advisor** and resolve or explicitly accept every finding.
 - Confirm **Project Settings → Backups** shows the plan tier and retention window (§12).
@@ -218,7 +243,7 @@ Do these in order, on the production Vercel project:
 - **After the flip, if something is wrong**: unset `DASHBOARD_DATA_PROVIDER` (or set it to anything other than `supabase`) in Vercel and redeploy — this immediately reverts the live site to mock mode. No data is lost or changed by this; it only changes which `DashboardDataProvider` the app constructs.
 - **A bad migration on the linked project**: per `docs/SUPABASE_OPERATIONS.md`'s existing guidance, write a new forward migration that undoes the mistake (e.g. `drop column`, restore a dropped policy) — never edit or delete an already-applied migration file. `supabase migration repair` exists only for correcting already-desynced tracked history after a manual fix, not as a first resort.
 - **A bad bootstrap run**: the script never deletes or overwrites existing rows (§7) — if it created something wrong (e.g. a mistyped owner email), fix it with a manual, reviewed `update`/`delete` against the specific row, documented at the time, never a re-run of an automated "undo" script.
-- **A bad collision-cleanup (path A)**: this is exactly why path A's recommended approach is `rename ... to legacy_..._archived` rather than `drop` (§2) — a rename is trivially reversible; a drop is not, which is why path A is only recommended when every precondition in §2 is met.
+- **A bad collision-cleanup (path A)**: this is exactly why path A's recommended approach moves every legacy table into its own `legacy_bossa` schema rather than `drop`ping anything (§2, `docs/PRODUCTION_SCHEMA_COLLISION_CLEANUP_PLAN.md`) — a schema move is reversible (move the tables back) as long as it's done before `db push` recreates the freed names; a drop is not, which is why path A is only recommended when every precondition in §2 is met.
 
 ---
 

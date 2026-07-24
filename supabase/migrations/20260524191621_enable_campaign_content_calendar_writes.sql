@@ -1,0 +1,12 @@
+-- Historical marker migration — issue #22 (Phase 4.5 Lane A2), "migration
+-- history alignment." See 20260524154102_init_bossa_ai_os_core.sql's header
+-- comment for the full rationale — this file exists only to match remote's
+-- already-tracked history for `bossa-ai-os`, never to encode real DDL/DML.
+--
+-- This is the last of the 7 legacy migration versions found already applied
+-- on the live project. Every real Phase 1-4 migration in this repository
+-- (20260721230001 onward) is chronologically later than all 7 of these
+-- markers, so they sort and apply first, before anything real, on a fresh
+-- `supabase db reset` -- and do nothing.
+--
+-- Deliberately a no-op: zero DDL, zero DML.
