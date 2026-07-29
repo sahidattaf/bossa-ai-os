@@ -20,6 +20,10 @@ export const BOSSA_DASHBOARD_DATA: DashboardData = {
     count: 186,
     trend: { deltaPercent: 4.1, comparisonLabel: "vs last Friday" },
   },
+  activeOrders: {
+    count: 9,
+    trend: { deltaPercent: 0, comparisonLabel: "live queue" },
+  },
   reservationsTonight: {
     count: 65,
     capacity: 180,
@@ -91,6 +95,17 @@ export const BOSSA_DASHBOARD_DATA: DashboardData = {
       requestedBy: "FinanceGPT",
     },
   ],
+  ownerCockpitRecommendation: {
+    id: "approval-bundle",
+    title: "Approve weekend value bundle campaign",
+    severity: "critical",
+    priority: "High",
+    executiveSummary: "A pending owner approval is ready for the weekend value bundle campaign.",
+    status: "proposed",
+    href: "/bossa/ai-executive/approvals",
+    ctaLabel: "Review approval",
+    hasPendingApproval: true,
+  },
   liveAlerts: [
     {
       id: "alert-soi95",

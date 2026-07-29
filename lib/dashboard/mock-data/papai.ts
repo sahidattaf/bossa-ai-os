@@ -16,6 +16,10 @@ export const PAPAI_DASHBOARD_DATA: DashboardData = {
     count: 54,
     trend: { deltaPercent: 9.7, comparisonLabel: "vs last Friday" },
   },
+  activeOrders: {
+    count: 0,
+    trend: { deltaPercent: 0, comparisonLabel: "live queue" },
+  },
   reservationsTonight: {
     count: 28,
     capacity: 60,
@@ -81,6 +85,17 @@ export const PAPAI_DASHBOARD_DATA: DashboardData = {
       requestedBy: "PapaiLegacyGPT",
     },
   ],
+  ownerCockpitRecommendation: {
+    id: "approval-menu",
+    title: "Approve opening-week menu pricing",
+    severity: "warning",
+    priority: "Medium",
+    executiveSummary: "Opening-week menu pricing is waiting for an owner decision before launch.",
+    status: "proposed",
+    href: "/papai/ai-executive/approvals",
+    ctaLabel: "Review approval",
+    hasPendingApproval: true,
+  },
   liveAlerts: [
     {
       id: "alert-supplier-gap",

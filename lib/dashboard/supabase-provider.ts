@@ -5,7 +5,15 @@ import { listRecentKpiSnapshots } from "@/lib/operations/kpi-snapshots";
 import type { Database } from "@/lib/supabase/database.types";
 
 import type { DashboardDataProvider } from "./data-provider";
-import type { AiPriorityItem, ApprovalQueueItem, DashboardData, LiveAlertItem, Priority } from "./types";
+import type {
+  AiPriorityItem,
+  ApprovalQueueItem,
+  DashboardData,
+  LiveAlertItem,
+  OwnerCockpitRecommendation,
+  OwnerCockpitRecommendationStatus,
+  Priority,
+} from "./types";
 
 const NO_DATA_TREND = { deltaPercent: 0, comparisonLabel: "no data yet" };
 
@@ -13,6 +21,7 @@ const NO_DATA_TREND = { deltaPercent: 0, comparisonLabel: "no data yet" };
 interface DashboardSnapshot {
   as_of: string;
   orders_today: number;
+  active_orders: number;
   orders_cancelled_today: number;
   reservations_tonight: number;
   reservations_capacity_tonight: number;
@@ -29,6 +38,17 @@ const SEVERITY_TO_PRIORITY: Record<string, Priority> = {
   warning: "Medium",
   info: "Low",
 };
+
+const OWNER_COCKPIT_RECOMMENDATION_STATUSES: OwnerCockpitRecommendationStatus[] = [
+  "proposed",
+  "approved",
+  "executing",
+];
+const OWNER_COCKPIT_RECOMMENDATION_STATUS_SET = new Set<string>(OWNER_COCKPIT_RECOMMENDATION_STATUSES);
+
+function isOwnerCockpitRecommendationStatus(status: string): status is OwnerCockpitRecommendationStatus {
+  return OWNER_COCKPIT_RECOMMENDATION_STATUS_SET.has(status);
+}
 
 /**
  * Real implementation of DashboardDataProvider (Phase 3A's live aggregates,
@@ -50,11 +70,12 @@ export class SupabaseDashboardDataProvider implements DashboardDataProvider {
   async getDashboardData(organizationId: string): Promise<DashboardData> {
     const { data: organization } = await this.supabase
       .from("organizations")
-      .select("name")
+      .select("name, slug")
       .eq("id", organizationId)
       .maybeSingle();
 
     const organizationName = organization?.name ?? "your organization";
+    const organizationSlug = organization?.slug ?? organizationId;
 
     const { data: snapshotData, error: snapshotError } = await this.supabase.rpc("get_dashboard_snapshot", {
       p_organization_id: organizationId,
@@ -63,13 +84,14 @@ export class SupabaseDashboardDataProvider implements DashboardDataProvider {
     if (snapshotError) throw toOperationalError(snapshotError);
     const snapshot = snapshotData as unknown as DashboardSnapshot;
 
-    const [recentSnapshots, aiPriorities, liveAlerts, approvalQueue] = await Promise.all([
+    const [recentSnapshots, aiPriorities, liveAlerts, approvalQueue, ownerCockpitRecommendation] = await Promise.all([
       snapshot.finance_visible
         ? listRecentKpiSnapshots(this.supabase, organizationId, { days: 7 })
         : Promise.resolve([]),
       this.buildAiPriorities(organizationId),
       this.buildLiveAlerts(organizationId),
       this.buildApprovalQueue(organizationId),
+      this.buildOwnerCockpitRecommendation(organizationId, organizationSlug),
     ]);
     const orderedSnapshots = [...recentSnapshots].reverse();
 
@@ -84,6 +106,7 @@ export class SupabaseDashboardDataProvider implements DashboardDataProvider {
         trend: NO_DATA_TREND,
       },
       ordersToday: { count: snapshot.orders_today, trend: NO_DATA_TREND },
+      activeOrders: { count: snapshot.active_orders, trend: NO_DATA_TREND },
       reservationsTonight: {
         count: snapshot.reservations_tonight,
         capacity: snapshot.reservations_capacity_tonight,
@@ -104,6 +127,7 @@ export class SupabaseDashboardDataProvider implements DashboardDataProvider {
       syncSources: [],
       aiPriorities,
       approvalQueue,
+      ownerCockpitRecommendation,
       liveAlerts,
       revenueForecast: {
         labels: orderedSnapshots.map((row) => row.snapshot_date),
@@ -111,6 +135,79 @@ export class SupabaseDashboardDataProvider implements DashboardDataProvider {
       },
       quickActions: [],
     };
+  }
+
+  private toOwnerCockpitRecommendation(
+    row: {
+      id: string;
+      title: string;
+      executive_summary: string;
+      severity: string;
+      status: string;
+    },
+    organizationSlug: string,
+    hasPendingApproval: boolean,
+  ): OwnerCockpitRecommendation | null {
+    if (!isOwnerCockpitRecommendationStatus(row.status)) return null;
+
+    return {
+      id: row.id,
+      title: row.title,
+      severity: row.severity,
+      priority: SEVERITY_TO_PRIORITY[row.severity] ?? "Low",
+      executiveSummary: row.executive_summary,
+      status: row.status,
+      href: hasPendingApproval
+        ? `/${organizationSlug}/ai-executive/approvals`
+        : `/${organizationSlug}/ai-executive/recommendations/${row.id}`,
+      ctaLabel: hasPendingApproval ? "Review approval" : "Open recommendation",
+      hasPendingApproval,
+    };
+  }
+
+  private async buildOwnerCockpitRecommendation(
+    organizationId: string,
+    organizationSlug: string,
+  ): Promise<OwnerCockpitRecommendation | null> {
+    const { data: approvals, error: approvalsError } = await this.supabase
+      .from("ai_approvals")
+      .select("recommendation_id")
+      .eq("organization_id", organizationId)
+      .eq("status", "pending");
+
+    if (approvalsError) throw toOperationalError(approvalsError);
+
+    const recommendationIds = (approvals ?? []).map((approval) => approval.recommendation_id);
+    if (recommendationIds.length > 0) {
+      const { data: pendingRecommendation, error: pendingError } = await this.supabase
+        .from("ai_recommendations")
+        .select("id, title, executive_summary, severity, status")
+        .eq("organization_id", organizationId)
+        .in("id", recommendationIds)
+        .in("status", OWNER_COCKPIT_RECOMMENDATION_STATUSES)
+        .order("priority_score", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (pendingError) throw toOperationalError(pendingError);
+      if (pendingRecommendation) {
+        return this.toOwnerCockpitRecommendation(pendingRecommendation, organizationSlug, true);
+      }
+    }
+
+    const { data: recommendation, error } = await this.supabase
+      .from("ai_recommendations")
+      .select("id, title, executive_summary, severity, status")
+      .eq("organization_id", organizationId)
+      .in("status", OWNER_COCKPIT_RECOMMENDATION_STATUSES)
+      .order("priority_score", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw toOperationalError(error);
+    return recommendation ? this.toOwnerCockpitRecommendation(recommendation, organizationSlug, false) : null;
   }
 
   /** Top open recommendations by priority_score — real evidence-backed AI Executive output, not a synthetic derivation. */
