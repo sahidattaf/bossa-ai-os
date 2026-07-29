@@ -33,15 +33,31 @@
 --
 -- Both functions take the source/target schema names as parameters
 -- (defaulting to the real 'public' -> 'legacy_bossa' move) specifically so
--- this exact file can also be loaded into a disposable, isolated test
--- schema and exercised end-to-end in supabase/tests/legacy_schema_cleanup.
--- test.sql, without ever touching a real `public` table -- the tested code
--- and the code that will actually run against bossa-ai-os are the same
--- file, not a reimplementation.
+-- the same function bodies can also be loaded into a disposable, isolated
+-- test schema and exercised end-to-end in
+-- supabase/tests/legacy_schema_cleanup.test.sql, without ever touching a
+-- real `public` table. That test file inlines a byte-identical copy of the
+-- SYNC-BEGIN/SYNC-END-marked blocks below (rather than \ir-including this
+-- file directly) because `supabase test db` runs pgTAP inside a container
+-- that only mounts supabase/tests/ -- a sibling directory like this one is
+-- not visible to it. tests/unit/supabase/legacy-schema-cleanup-sql-sync.
+-- test.ts asserts the two copies stay identical on every CI run, so the
+-- tested code and the code that will actually run against bossa-ai-os
+-- never silently drift apart.
 --
 -- Never includes production secrets, PII, exported rows, checksums, or
 -- local export paths -- this file only ever contains schema-shape SQL.
 
+-- SYNC-BEGIN: perform_legacy_bossa_schema_cleanup
+-- Kept byte-identical to the copy inlined in
+-- supabase/tests/legacy_schema_cleanup.test.sql, between its own matching
+-- SYNC-BEGIN/SYNC-END markers -- tests/unit/supabase/legacy-schema-cleanup-
+-- sql-sync.test.ts asserts this automatically on every CI run. Inlined
+-- (not \ir-included from the test file) because `supabase test db` runs
+-- pgTAP inside a container that only mounts supabase/tests/ -- a sibling
+-- directory like supabase/production-ops/ is not visible to it, confirmed
+-- directly by a real CI failure ("No such file or directory") when this
+-- was first attempted via \ir.
 -- =============================================================================
 -- public.perform_legacy_bossa_schema_cleanup()
 -- =============================================================================
@@ -167,7 +183,12 @@ comment on function public.perform_legacy_bossa_schema_cleanup(text, text) is
 
 revoke all on function public.perform_legacy_bossa_schema_cleanup(text, text) from public;
 grant execute on function public.perform_legacy_bossa_schema_cleanup(text, text) to service_role;
+-- SYNC-END: perform_legacy_bossa_schema_cleanup
 
+-- SYNC-BEGIN: verify_legacy_bossa_schema_cleanup
+-- Kept byte-identical to the copy inlined in
+-- supabase/tests/legacy_schema_cleanup.test.sql -- see the matching note
+-- above SYNC-BEGIN: perform_legacy_bossa_schema_cleanup.
 -- =============================================================================
 -- public.verify_legacy_bossa_schema_cleanup()
 -- =============================================================================
@@ -273,3 +294,4 @@ comment on function public.verify_legacy_bossa_schema_cleanup(text, text) is
 
 revoke all on function public.verify_legacy_bossa_schema_cleanup(text, text) from public;
 grant execute on function public.verify_legacy_bossa_schema_cleanup(text, text) to service_role;
+-- SYNC-END: verify_legacy_bossa_schema_cleanup
