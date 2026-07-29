@@ -13,7 +13,7 @@
 create extension if not exists pgtap with schema extensions;
 
 begin;
-select plan(27);
+select plan(30);
 
 -- Fixed seed UUIDs (see supabase/seed.sql).
 -- BOSSA org:              00000000-0000-0000-0000-000000000001
@@ -269,6 +269,29 @@ select is(
   (public.get_dashboard_snapshot('00000000-0000-0000-0000-000000000001', '2026-07-20 18:00:00+00'::timestamptz) ->> 'orders_today')::int,
   2,
   'BOSSA staff still sees the non-revenue orders_today figure'
+);
+
+select is(
+  (public.get_dashboard_snapshot('00000000-0000-0000-0000-000000000001', '2026-07-20 18:00:00+00'::timestamptz) ->> 'active_orders')::int,
+  1,
+  'BOSSA active_orders counts the one seeded non-terminal order'
+);
+
+select pg_temp.authenticate_as('00000000-0000-0000-0002-000000000001');
+insert into public.orders (id, organization_id, location_id, order_number, channel, fulfillment_type, customer_name, status, payment_status, created_at) values
+  ('00000000-0000-0000-0006-000000009001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0001-000000000001', 'BOSSA-PGTAP-COMPLETE', 'takeout', 'pickup', 'Completed PgTAP', 'completed', 'paid', '2026-07-20 14:00+00'),
+  ('00000000-0000-0000-0006-000000009002', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0001-000000000001', 'BOSSA-PGTAP-CANCELLED', 'takeout', 'pickup', 'Cancelled PgTAP', 'cancelled', 'unpaid', '2026-07-20 14:05+00');
+select is(
+  (public.get_dashboard_snapshot('00000000-0000-0000-0000-000000000001', '2026-07-20 18:00:00+00'::timestamptz) ->> 'active_orders')::int,
+  1,
+  'completed and cancelled BOSSA orders are excluded from active_orders'
+);
+
+select pg_temp.authenticate_as('00000000-0000-0000-0002-000000000003');
+select is(
+  (public.get_dashboard_snapshot('00000000-0000-0000-0000-000000000002', '2026-07-20 18:00:00+00'::timestamptz) ->> 'active_orders')::int,
+  0,
+  'Papai active_orders excludes completed orders and stays tenant-scoped'
 );
 
 select pg_temp.authenticate_as('00000000-0000-0000-0002-000000000004');

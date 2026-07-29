@@ -153,6 +153,20 @@ describe("operational data (Phase 3A)", () => {
     expect((staffSnapshot as Record<string, unknown>).orders_today).toEqual(
       (ownerSnapshot as Record<string, unknown>).orders_today,
     );
+    expect((staffSnapshot as Record<string, unknown>).active_orders).toEqual(
+      (ownerSnapshot as Record<string, unknown>).active_orders,
+    );
+  });
+
+  it("reports active orders separately from orders created today", async () => {
+    const { data: snapshot, error } = await bossaOwner.rpc("get_dashboard_snapshot", {
+      p_organization_id: BOSSA_ORG_ID,
+      p_as_of: "2026-07-20T18:00:00Z",
+    });
+
+    expect(error).toBeNull();
+    expect((snapshot as Record<string, unknown>).orders_today).toBe(2);
+    expect((snapshot as Record<string, unknown>).active_orders).toBe(1);
   });
 
   it("rejects get_dashboard_snapshot for a user with no membership in the organization at all", async () => {

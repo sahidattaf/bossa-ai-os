@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { DashboardGrid } from "@/components/dashboard/dashboard-grid";
+import { MobileOwnerCockpit } from "@/components/dashboard/mobile-owner-cockpit";
 import { PageHeader } from "@/components/layout/page-header";
 import { getDashboardDataProvider, getDashboardProviderMode } from "@/lib/dashboard/get-data-provider";
 import { createClient } from "@/lib/supabase/server";
@@ -44,6 +45,7 @@ export default async function DashboardPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Dashboard" description={`${tenant.name} — executive overview`} />
+      <MobileOwnerCockpit tenant={tenant} organizationSlug={organizationSlug} data={data} permissions={permissions} />
       <DashboardGrid tenant={tenant} data={data} permissions={permissions} />
     </div>
   );

@@ -20,6 +20,11 @@ export interface OrdersTodayData {
   trend: TrendInfo;
 }
 
+export interface ActiveOrdersData {
+  count: number;
+  trend: TrendInfo;
+}
+
 export interface ReservationsTonightData {
   count: number;
   capacity: number;
@@ -70,6 +75,20 @@ export interface ApprovalQueueItem {
   requestedBy: string;
 }
 
+export type OwnerCockpitRecommendationStatus = "proposed" | "approved" | "executing";
+
+export interface OwnerCockpitRecommendation {
+  id: string;
+  title: string;
+  severity: string;
+  priority: Priority;
+  executiveSummary: string;
+  status: OwnerCockpitRecommendationStatus;
+  href: string;
+  ctaLabel: string;
+  hasPendingApproval: boolean;
+}
+
 export interface LiveAlertItem {
   id: string;
   severity: AlertSeverity;
@@ -92,6 +111,7 @@ export interface DashboardData {
   greeting: GreetingData;
   revenueToday: RevenueTodayData;
   ordersToday: OrdersTodayData;
+  activeOrders: ActiveOrdersData;
   reservationsTonight: ReservationsTonightData;
   whatsappLeads: WhatsAppLeadsData;
   reviewScore: ReviewScoreData;
@@ -101,6 +121,7 @@ export interface DashboardData {
   syncSources: SyncSource[];
   aiPriorities: AiPriorityItem[];
   approvalQueue: ApprovalQueueItem[];
+  ownerCockpitRecommendation: OwnerCockpitRecommendation | null;
   liveAlerts: LiveAlertItem[];
   revenueForecast: RevenueForecastData;
   quickActions: QuickActionItem[];
