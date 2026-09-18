@@ -11,15 +11,19 @@ test.describe("mobile sidebar behavior", () => {
 
     const openMenuButton = page.getByRole("button", { name: "Open navigation menu" });
     await expect(openMenuButton).toBeVisible();
-    await expect(page.getByRole("link", { name: "Orders" })).not.toBeVisible();
+
+    const navigationSheet = page.getByRole("dialog");
+    await expect(navigationSheet).not.toBeVisible();
 
     await openMenuButton.click();
-    const ordersLink = page.getByRole("link", { name: "Orders" });
+    await expect(navigationSheet).toBeVisible();
+
+    const ordersLink = navigationSheet.getByRole("link", { name: "Orders" });
     await expect(ordersLink).toBeVisible();
 
     await ordersLink.click();
 
     await expect(page).toHaveURL("/bossa/orders");
-    await expect(page.getByRole("link", { name: "Orders" })).not.toBeVisible();
+    await expect(navigationSheet).not.toBeVisible();
   });
 });
