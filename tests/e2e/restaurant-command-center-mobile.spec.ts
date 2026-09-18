@@ -123,11 +123,25 @@ test.describe("Caribbean Ember mobile pilot QA", () => {
     page,
   }) => {
     await page.goto(`${PILOT_ROOT}/reviews`);
-    await expect(page.getByText("Reviews coming in Phase 3", { exact: false })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Reviews" })).toBeVisible();
+    await expect(page.getByText("Live in Phase 3 of the Hospitality OS roadmap.")).toBeVisible();
+    await expect(page.getByText("Reviews is coming in Phase 3")).toBeVisible();
+    await expect(
+      page.getByText(
+        "Aggregated review scores, response workflows, and reputation trends land with the operational modules phase.",
+      ),
+    ).toBeVisible();
     await expectDemoBanner(page);
 
     await page.goto(`${PILOT_ROOT}/tasks`);
-    await expect(page.getByText("Tasks & SOPs coming in Phase 3", { exact: false })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tasks & SOPs" })).toBeVisible();
+    await expect(page.getByText("Live in Phase 3 of the Hospitality OS roadmap.")).toBeVisible();
+    await expect(page.getByText("Tasks & SOPs is coming in Phase 3")).toBeVisible();
+    await expect(
+      page.getByText(
+        "SOP runs, task ownership, and completion tracking land with the operational modules phase.",
+      ),
+    ).toBeVisible();
     await expectDemoBanner(page);
   });
 });
