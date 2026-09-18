@@ -159,6 +159,22 @@ describe("operational data (Phase 3A)", () => {
   });
 
   it("reports active orders separately from orders created today", async () => {
+    const activeStatuses = ["pending", "confirmed", "preparing", "ready", "out_for_delivery"];
+    const { data: activeOrders, error: activeOrdersError } = await bossaOwner
+      .from("orders")
+      .select("order_number, status")
+      .eq("organization_id", BOSSA_ORG_ID)
+      .in("status", activeStatuses);
+
+    expect(activeOrdersError).toBeNull();
+
+    // This integration database is shared across test files. By the time this
+    // assertion runs, the active set includes the seeded BOSSA-1002 order plus
+    // pending orders created by the operations and lead-conversion integration
+    // tests (INTEGRATION-* and CONVERT-*). Derive the expected count from the
+    // current controlled database state rather than assuming the untouched seed.
+    const expectedActiveOrders = activeOrders?.length ?? 0;
+
     const { data: snapshot, error } = await bossaOwner.rpc("get_dashboard_snapshot", {
       p_organization_id: BOSSA_ORG_ID,
       p_as_of: "2026-07-20T18:00:00Z",
@@ -166,7 +182,7 @@ describe("operational data (Phase 3A)", () => {
 
     expect(error).toBeNull();
     expect((snapshot as Record<string, unknown>).orders_today).toBe(2);
-    expect((snapshot as Record<string, unknown>).active_orders).toBe(1);
+    expect((snapshot as Record<string, unknown>).active_orders).toBe(expectedActiveOrders);
   });
 
   it("rejects get_dashboard_snapshot for a user with no membership in the organization at all", async () => {
