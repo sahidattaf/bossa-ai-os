@@ -72,19 +72,56 @@ const PAPAI_APPROVALS: MockApprovalRow[] = [
   { id: "mock-approval-papai-1", recommendationTitle: "Follow up with Demo Guest — Ronnie S.", recommendationType: "unanswered_lead_followup" },
 ];
 
+const CARIBBEAN_EMBER_SIGNALS: MockSignalRow[] = [
+  { id: "mock-signal-ember-1", severity: "warning", title: "3 fictional leads await mock follow-up" },
+  { id: "mock-signal-ember-2", severity: "info", title: "DEMO DATA — NOT LIVE" },
+];
+
+const CARIBBEAN_EMBER_RECOMMENDATIONS: MockRecommendationRow[] = [
+  {
+    id: "mock-rec-ember-1",
+    title: "Review three fictional unanswered leads",
+    executiveSummary:
+      "Mock recommendation only. No WhatsApp, email, reservation, payment, or external action is available.",
+    severity: "warning",
+    status: "proposed",
+    recommendationType: "demo_lead_followup",
+  },
+  {
+    id: "mock-rec-ember-2",
+    title: "Review fictional catering pipeline",
+    executiveSummary:
+      "Seven synthetic catering inquiries are included for workflow demonstration only.",
+    severity: "info",
+    status: "proposed",
+    recommendationType: "demo_catering_review",
+  },
+];
+
+const CARIBBEAN_EMBER_APPROVALS: MockApprovalRow[] = [
+  {
+    id: "mock-approval-ember-1",
+    recommendationTitle: "Review mock lead follow-up draft",
+    recommendationType: "demo_lead_followup",
+  },
+];
+
 const SIGNALS_BY_TENANT_ID: Record<string, MockSignalRow[]> = {
   org_001_bossa: BOSSA_SIGNALS,
   org_002_papai: PAPAI_SIGNALS,
+  org_demo_caribbean_ember: CARIBBEAN_EMBER_SIGNALS,
 };
 
 const RECOMMENDATIONS_BY_TENANT_ID: Record<string, MockRecommendationRow[]> = {
   org_001_bossa: BOSSA_RECOMMENDATIONS,
   org_002_papai: PAPAI_RECOMMENDATIONS,
+  org_demo_caribbean_ember: CARIBBEAN_EMBER_RECOMMENDATIONS,
 };
 
 const APPROVALS_BY_TENANT_ID: Record<string, MockApprovalRow[]> = {
   org_001_bossa: BOSSA_APPROVALS,
   org_002_papai: PAPAI_APPROVALS,
+  org_demo_caribbean_ember: CARIBBEAN_EMBER_APPROVALS,
 };
 
 export function getMockSignals(tenantId: string): MockSignalRow[] {
