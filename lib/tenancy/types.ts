@@ -77,4 +77,6 @@ export interface TenantConfig {
   aiManagerName: string;
   productKpi: TenantProductKpi;
   dashboardWidgets: DashboardWidgetInstanceConfig[];
+  /** Marks a tenant as a fictional, non-live demonstration workspace. */
+  isDemo?: boolean;
 }
