@@ -17,13 +17,21 @@ describe("tenant configuration resolution", () => {
     expect(tenant?.id).toBe("org_002_papai");
   });
 
+  it("resolves the fictional Restaurant Command Center pilot tenant", () => {
+    const tenant = getTenantBySlug("caribbean-ember");
+    expect(tenant).toBeDefined();
+    expect(tenant?.name).toBe("Caribbean Ember Grill — Demo Restaurant");
+    expect(tenant?.id).toBe("org_demo_caribbean_ember");
+    expect(tenant?.isDemo).toBe(true);
+  });
+
   it("is case-insensitive on slug lookup", () => {
     expect(getTenantBySlug("BOSSA")?.slug).toBe("bossa");
   });
 
-  it("lists exactly the two seeded tenant slugs", () => {
-    expect(listTenantSlugs()).toEqual(["bossa", "papai"]);
-    expect(listTenants()).toHaveLength(2);
+  it("lists the two existing tenants plus the isolated fictional pilot tenant", () => {
+    expect(listTenantSlugs()).toEqual(["bossa", "papai", "caribbean-ember"]);
+    expect(listTenants()).toHaveLength(3);
   });
 });
 

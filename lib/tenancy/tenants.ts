@@ -86,7 +86,30 @@ const PAPAI_TENANT: TenantConfig = {
   dashboardWidgets: widgetOrder(),
 };
 
-const TENANTS: readonly TenantConfig[] = [BOSSA_TENANT, PAPAI_TENANT];
+
+const CARIBBEAN_EMBER_TENANT: TenantConfig = {
+  id: "org_demo_caribbean_ember",
+  slug: "caribbean-ember",
+  name: "Caribbean Ember Grill — Demo Restaurant",
+  businessType: "restaurant",
+  branding: {
+    logoInitials: "CE",
+    primaryColor: "221 83% 53%",
+    accentColor: "189 94% 43%",
+    themeMode: "light",
+    borderRadius: "standard",
+  },
+  locale: "en-CW",
+  timezone: "America/Curacao",
+  currency: "XCG",
+  serviceStatus: "open",
+  aiManagerName: "Demo AI Manager",
+  productKpi: { label: "Catering Inquiries", unit: "inquiries" },
+  dashboardWidgets: widgetOrder(),
+  isDemo: true,
+};
+
+const TENANTS: readonly TenantConfig[] = [BOSSA_TENANT, PAPAI_TENANT, CARIBBEAN_EMBER_TENANT];
 
 export function listTenants(): readonly TenantConfig[] {
   return TENANTS;

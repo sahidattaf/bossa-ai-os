@@ -38,6 +38,11 @@ function AppShell({
           userRoleLabel={userRoleLabel}
           onSignOut={onSignOut}
         />
+        {tenant.isDemo ? (
+          <div className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-center text-xs font-semibold tracking-wide text-amber-900">
+            DEMO DATA — NOT LIVE · Fictional Restaurant Command Center pilot · No external actions or live integrations
+          </div>
+        ) : null}
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
       </div>
     </div>
