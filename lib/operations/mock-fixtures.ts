@@ -133,19 +133,54 @@ const PAPAI_ORDERS: MockOrderRow[] = [
   },
 ];
 
+const CARIBBEAN_EMBER_LEADS: MockLeadRow[] = Array.from({ length: 12 }, (_, index) => ({
+  id: `mock-lead-ember-${index + 1}`,
+  contactName: `Demo Guest ${String(index + 1).padStart(2, "0")}`,
+  phone: `+000000${String(index + 1).padStart(4, "0")}`,
+  leadType: index % 3 === 0 ? "catering" : index % 2 === 0 ? "reservation" : "general_inquiry",
+  source: index % 2 === 0 ? "mock_whatsapp" : "mock_website",
+  status: index < 3 ? "new" : index < 7 ? "contacted" : "qualified",
+  createdAt: `2026-09-${String(1 + (index % 9)).padStart(2, "0")}T12:00:00Z`,
+}));
+
+const CARIBBEAN_EMBER_RESERVATIONS: MockReservationRow[] = Array.from(
+  { length: 35 },
+  (_, index) => ({
+    id: `mock-res-ember-${index + 1}`,
+    confirmationCode: `EMBER-DEMO-${String(index + 1).padStart(3, "0")}`,
+    guestName: `Demo Guest ${String(index + 1).padStart(2, "0")}`,
+    partySize: 2 + (index % 5),
+    reservationAt: `2026-09-${String(18 + (index % 7)).padStart(2, "0")}T${String(18 + (index % 4)).padStart(2, "0")}:00:00Z`,
+    status: index % 5 === 0 ? "pending" : "confirmed",
+  }),
+);
+
+const CARIBBEAN_EMBER_ORDERS: MockOrderRow[] = Array.from({ length: 18 }, (_, index) => ({
+  id: `mock-order-ember-${index + 1}`,
+  orderNumber: `EMBER-DEMO-${String(index + 1).padStart(4, "0")}`,
+  customerName: `Demo Guest ${String(index + 1).padStart(2, "0")}`,
+  status: index < 4 ? "pending" : "completed",
+  paymentStatus: "demo_only",
+  total: 20 + index * 1.5,
+  currency: "XCG",
+}));
+
 const LEADS_BY_TENANT_ID: Record<string, MockLeadRow[]> = {
   org_001_bossa: BOSSA_LEADS,
   org_002_papai: PAPAI_LEADS,
+  org_demo_caribbean_ember: CARIBBEAN_EMBER_LEADS,
 };
 
 const RESERVATIONS_BY_TENANT_ID: Record<string, MockReservationRow[]> = {
   org_001_bossa: BOSSA_RESERVATIONS,
   org_002_papai: PAPAI_RESERVATIONS,
+  org_demo_caribbean_ember: CARIBBEAN_EMBER_RESERVATIONS,
 };
 
 const ORDERS_BY_TENANT_ID: Record<string, MockOrderRow[]> = {
   org_001_bossa: BOSSA_ORDERS,
   org_002_papai: PAPAI_ORDERS,
+  org_demo_caribbean_ember: CARIBBEAN_EMBER_ORDERS,
 };
 
 export function getMockLeads(tenantId: string): MockLeadRow[] {
