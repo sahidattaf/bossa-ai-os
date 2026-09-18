@@ -1,0 +1,144 @@
+name: ACL Proof Diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/acl-proof.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  acl-proof:
+    name: Read-only local ACL proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase stack
+        run: supabase start --exclude studio,imgproxy,logflare,vector
+
+      - name: Apply migrations and seed to disposable local database
+        run: supabase db reset
+
+      - name: Resolve local database URL
+        shell: bash
+        run: |
+          supabase status -o env > /tmp/supabase-status.env
+          set -a
+          source /tmp/supabase-status.env
+          set +a
+          if [ -z "${DB_URL:-}" ]; then
+            echo "DB_URL was not emitted by supabase status" >&2
+            exit 1
+          fi
+          echo "DB_URL=$DB_URL" >> "$GITHUB_ENV"
+
+      - name: Capture table and column ACL evidence
+        shell: bash
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 > /tmp/acl-table-proof.txt <<'SQL'
+          \pset pager off
+          \echo '=== has_table_privilege ==='
+          select
+            has_table_privilege('authenticated', 'public.ai_approvals', 'UPDATE')
+              as authenticated_can_update_ai_approvals,
+            has_table_privilege('authenticated', 'public.ai_action_attempts', 'UPDATE')
+              as authenticated_can_update_ai_action_attempts,
+            has_table_privilege('authenticated', 'public.orders', 'UPDATE')
+              as authenticated_has_table_update_orders;
+
+          \echo '=== has_column_privilege ==='
+          select
+            has_column_privilege('authenticated', 'public.orders', 'subtotal', 'UPDATE')
+              as authenticated_can_update_orders_subtotal,
+            has_column_privilege('authenticated', 'public.orders', 'total', 'UPDATE')
+              as authenticated_can_update_orders_total;
+
+          \echo '=== pg_class.relacl ==='
+          select
+            c.relname,
+            c.relacl
+          from pg_class c
+          join pg_namespace n on n.oid = c.relnamespace
+          where n.nspname = 'public'
+            and c.relname in ('ai_approvals', 'ai_action_attempts', 'orders')
+          order by c.relname;
+          SQL
+          cat /tmp/acl-table-proof.txt
+
+      - name: Capture cleanup-function ACL evidence in rollback-only fixture
+        shell: bash
+        run: |
+          {
+            echo 'begin;'
+            cat supabase/production-ops/legacy_schema_cleanup.sql
+            cat <<'SQL'
+          \pset pager off
+          \echo '=== has_function_privilege ==='
+          select
+            has_function_privilege(
+              'authenticated',
+              'public.perform_legacy_bossa_schema_cleanup(text,text)',
+              'EXECUTE'
+            ) as authenticated_can_execute_cleanup,
+            has_function_privilege(
+              'anon',
+              'public.perform_legacy_bossa_schema_cleanup(text,text)',
+              'EXECUTE'
+            ) as anon_can_execute_cleanup,
+            has_function_privilege(
+              'service_role',
+              'public.perform_legacy_bossa_schema_cleanup(text,text)',
+              'EXECUTE'
+            ) as service_role_can_execute_cleanup;
+
+          \echo '=== pg_proc.proacl ==='
+          select
+            p.proname,
+            pg_get_function_identity_arguments(p.oid) as args,
+            p.proacl
+          from pg_proc p
+          join pg_namespace n on n.oid = p.pronamespace
+          where n.nspname = 'public'
+            and p.proname = 'perform_legacy_bossa_schema_cleanup';
+
+          rollback;
+          SQL
+          } > /tmp/acl-function-proof.sql
+
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f /tmp/acl-function-proof.sql > /tmp/acl-function-proof.txt
+          cat /tmp/acl-function-proof.txt
+
+      - name: Upload raw ACL evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acl-proof
+          path: |
+            /tmp/acl-table-proof.txt
+            /tmp/acl-function-proof.txt
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop
