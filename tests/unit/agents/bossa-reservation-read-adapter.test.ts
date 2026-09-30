@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -20,7 +21,7 @@ import {
 } from "@/tests/fixtures/bossa-reservation-read-adapter.fixtures";
 
 const ADAPTER_SOURCE = readFileSync(
-  new URL("../../../lib/agents/bossa-reservation-read-adapter.ts", import.meta.url),
+  path.resolve(process.cwd(), "lib/agents/bossa-reservation-read-adapter.ts"),
   "utf8",
 );
 
