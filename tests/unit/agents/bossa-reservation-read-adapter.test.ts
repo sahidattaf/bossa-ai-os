@@ -13,6 +13,7 @@ import {
   readSyntheticReservation,
 } from "@/lib/agents/bossa-reservation-read-adapter";
 import {
+  BOSSA_TIMEZONE,
   malformedReservationFixture,
   missingReservationRef,
   reservationFixtures,
@@ -22,6 +23,8 @@ const ADAPTER_SOURCE = readFileSync(
   new URL("../../../lib/agents/bossa-reservation-read-adapter.ts", import.meta.url),
   "utf8",
 );
+
+const TRUSTED_CONTEXT = { timezone: BOSSA_TIMEZONE };
 
 const EXPECTED_DATA_KEYS = [
   "reservation_ref",
@@ -47,10 +50,19 @@ const FORBIDDEN_KEYS = [
   "source",
   "assigned_user_id",
   "metadata",
+  "timezone",
 ];
 
-function read(reservationRef: string, rows: readonly unknown[] = reservationFixtures) {
-  return readSyntheticReservation({ operation: "read", reservationRef }, rows);
+function read(
+  reservationRef: string,
+  rows: readonly unknown[] = reservationFixtures,
+  trustedLocationContext: unknown = TRUSTED_CONTEXT,
+) {
+  return readSyntheticReservation(
+    { operation: "read", reservationRef },
+    rows,
+    trustedLocationContext,
+  );
 }
 
 describe("BOSSA-RESERVATION-READ-ADAPTER-v1", () => {
@@ -88,6 +100,52 @@ describe("BOSSA-RESERVATION-READ-ADAPTER-v1", () => {
     }
   });
 
+  it("converts stored UTC timestamp to America/Curacao local time", () => {
+    const result = read("00000000-0000-4000-8000-000000000002");
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected successful synthetic read");
+    expect(result.data.service_date).toBe("2026-10-06");
+    expect(result.data.service_time).toBe("19:30");
+  });
+
+  it("handles calendar-boundary conversion to the previous Curacao date", () => {
+    const result = read("00000000-0000-4000-8000-000000000012");
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected successful synthetic read");
+    expect(result.data.service_date).toBe("2026-10-06");
+    expect(result.data.service_time).toBe("22:30");
+  });
+
+  it("fails closed for an invalid trusted timezone", () => {
+    const result = read(
+      "00000000-0000-4000-8000-000000000002",
+      reservationFixtures,
+      { timezone: "Mars/Olympus" },
+    );
+    expect(result).toMatchObject({ ok: false, error_code: "INVALID_TIMEZONE" });
+  });
+
+  it("fails closed when trusted timezone context is missing", () => {
+    const result = readSyntheticReservation(
+      { operation: "read", reservationRef: "00000000-0000-4000-8000-000000000002" },
+      reservationFixtures,
+    );
+    expect(result).toMatchObject({ ok: false, error_code: "MISSING_TIMEZONE" });
+  });
+
+  it("does not let the agent request override the trusted timezone", () => {
+    const result = readSyntheticReservation(
+      {
+        operation: "read",
+        reservationRef: "00000000-0000-4000-8000-000000000002",
+        timezone: "UTC",
+      },
+      reservationFixtures,
+      TRUSTED_CONTEXT,
+    );
+    expect(result).toMatchObject({ ok: false, error_code: "INVALID_REQUEST" });
+  });
+
   it.each([
     "00000000-0000-4000-8000-000000000007",
     "00000000-0000-4000-8000-000000000008",
@@ -105,6 +163,7 @@ describe("BOSSA-RESERVATION-READ-ADAPTER-v1", () => {
     expect(serialized).not.toContain("Private occasion");
     expect(serialized).not.toContain("Private free-text note");
     expect(serialized).not.toContain("SYNTHETIC-ONLY");
+    expect(serialized).not.toContain("America/Curacao");
   });
 
   it("fails closed for a cross-tenant reservation", () => {
@@ -134,6 +193,7 @@ describe("BOSSA-RESERVATION-READ-ADAPTER-v1", () => {
         status: "cancelled",
       },
       reservationFixtures,
+      TRUSTED_CONTEXT,
     );
 
     expect(result).toMatchObject({ ok: false, error_code: "INVALID_REQUEST" });
@@ -147,6 +207,7 @@ describe("BOSSA-RESERVATION-READ-ADAPTER-v1", () => {
         includeRaw: true,
       },
       reservationFixtures,
+      TRUSTED_CONTEXT,
     );
 
     expect(result).toMatchObject({ ok: false, error_code: "INVALID_REQUEST" });

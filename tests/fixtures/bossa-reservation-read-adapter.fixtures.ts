@@ -1,5 +1,6 @@
 export const BOSSA_ORG_ID = "11111111-1111-4111-8111-111111111111";
 export const OTHER_ORG_ID = "22222222-2222-4222-8222-222222222222";
+export const BOSSA_TIMEZONE = "America/Curacao";
 
 const base = {
   organization_id: BOSSA_ORG_ID,
@@ -10,7 +11,7 @@ const base = {
   phone: "+00000000000",
   email: "synthetic@example.invalid",
   party_size: 4,
-  reservation_at: "2026-10-06T19:30:00Z",
+  reservation_at: "2026-10-06T23:30:00Z",
   duration_minutes: 90,
   occasion: "Synthetic birthday note",
   notes: "Synthetic private note",
@@ -44,6 +45,9 @@ export const reservationFixtures = [
   }),
   row("00000000-0000-4000-8000-000000000010", "confirmed", {
     organization_id: OTHER_ORG_ID,
+  }),
+  row("00000000-0000-4000-8000-000000000012", "confirmed", {
+    reservation_at: "2026-10-07T02:30:00Z",
   }),
 ] as const;
 
