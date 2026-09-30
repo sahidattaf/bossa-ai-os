@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
@@ -15,6 +17,11 @@ import {
   missingReservationRef,
   reservationFixtures,
 } from "@/tests/fixtures/bossa-reservation-read-adapter.fixtures";
+
+const ADAPTER_SOURCE = readFileSync(
+  new URL("../../../lib/agents/bossa-reservation-read-adapter.ts", import.meta.url),
+  "utf8",
+);
 
 const EXPECTED_DATA_KEYS = [
   "reservation_ref",
@@ -154,6 +161,21 @@ describe("BOSSA-RESERVATION-READ-ADAPTER-v1", () => {
     expect(RESERVATION_READ_COLUMNS).not.toContain("phone");
     expect(RESERVATION_READ_COLUMNS).not.toContain("email");
     expect(RESERVATION_READ_COLUMNS).not.toContain("notes");
+  });
+
+  it("contains no production data path, wildcard read, credential, or write primitive", () => {
+    expect(ADAPTER_SOURCE).not.toContain('.select("*")');
+    expect(ADAPTER_SOURCE).not.toContain(".select('*')");
+    expect(ADAPTER_SOURCE).not.toContain("createClient");
+    expect(ADAPTER_SOURCE).not.toContain("SUPABASE_SECRET_KEY");
+    expect(ADAPTER_SOURCE).not.toContain("SUPABASE_SERVICE_ROLE_KEY");
+    expect(ADAPTER_SOURCE).not.toContain("fetch(");
+    expect(ADAPTER_SOURCE).not.toContain(".insert(");
+    expect(ADAPTER_SOURCE).not.toContain(".update(");
+    expect(ADAPTER_SOURCE).not.toContain(".delete(");
+    expect(ADAPTER_SOURCE).not.toContain(".rpc(");
+    expect(ADAPTER_SOURCE).not.toContain("whatsapp_leads");
+    expect(ADAPTER_SOURCE).not.toContain("bookings");
   });
 
   it("contains no availability field because the canonical schema has none", () => {

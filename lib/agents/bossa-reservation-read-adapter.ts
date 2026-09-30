@@ -13,7 +13,7 @@ export const REQUIRED_PERMISSION = "reservations.read" as const;
 export const SYNTHETIC_BOSSA_ORGANIZATION_ID =
   "11111111-1111-4111-8111-111111111111" as const;
 
-// This is the exact future database projection. Deliberately no select("*").
+// This is the exact future database projection. Wildcard selection is forbidden.
 export const RESERVATION_READ_COLUMNS =
   "id,status,reservation_at,party_size,created_at,updated_at" as const;
 
